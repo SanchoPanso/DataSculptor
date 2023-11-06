@@ -2,7 +2,7 @@
 import io
 import os
 from setuptools import find_packages, setup
-from cvml import __version__
+from cvml2 import __version__
 
 
 def read(*paths, **kwargs):
