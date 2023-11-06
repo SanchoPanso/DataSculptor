@@ -9,31 +9,29 @@ from easydict import EasyDict
 class AnnotatedImage(EasyDict):
     height: int
     width: int
-
-
-class InstanceImage(AnnotatedImage):
-    annotations: list
+    annotations: List[dict]
     
-
-class SemanticImage(AnnotatedImage):
-    sem_seg_file_name: str
+    def __init__(self, d=None, **kwargs):
+        if d is None:
+            d = {'width': 0, 'height': 0, 'annotations': []}
+        super().__init__(d, **kwargs)
     
 
 class Annotation(EasyDict):
-    """Class that contains annotations for computer vision tasks (detection, instance segmentation)"""
+    """Class that contains annotations for computer vision tasks (detection, instance segmentation)
+    
+    :param categories: list of categories (or classes), defaults to None
+    :param images: easydict of labeled images 
+                   with image names as keys (without file extension), defaults to None
+    """
     categories: List[str]
     images: EasyDict[str, AnnotatedImage]
     
-    # def __init__(self, categories: List[str] = None, images: EasyDict[str, AnnotatedImage] = None):
-    #     """
-    #     :param categories: list of categories (or classes), defaults to None
-    #     :param images: easydict of labeled images 
-    #                    with image names as keys (without file extension), defaults to None
-    #     """
-    #     super().__init__()
-    #     self['categories'] = categories
-    #     self['images'] = images
-
+    def __init__(self, d=None, **kwargs):
+        if d is None:
+            d = {'categories': [], 'images': {}}
+        super().__init__(d, **kwargs)
+    
 
 def read_coco(path: Union[str, bytes, os.PathLike]) -> Annotation:
     """ Read COCO annotation format
@@ -206,6 +204,10 @@ def write_yolo_det(annotation: dict, path: str):
                     
                 xc = x + w / 2
                 yc = y + h / 2
+                
+                if xc > 1 or yc > 1 or w > 1 or h > 1:
+                    pass
+                
                 line = f"{cls_id} {xc} {yc} {w} {h}\n"
                 f.write(line)
 

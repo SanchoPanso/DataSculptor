@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import sys
 import cv2
@@ -10,8 +11,8 @@ from enum import Enum
 import logging
 import time
 
-from cvml2.annotation import write_yolo_det
-from cvml2.image_source import ImageSource
+from cvml2 import Annotation, write_yolo_det
+from cvml2 import ImageSource, paths2image_sources
 
 
 class DetectionDataset:
@@ -22,8 +23,8 @@ class DetectionDataset:
 
     def __init__(self, 
                  image_sources: List[ImageSource] = None,
-                 annotation: dict = None, 
-                 samples: Dict[str, List[int]] = None):
+                 annotation: Annotation = None, 
+                 subsets: Dict[str, List[int]] = None):
         """Constructor
 
         :param image_sources: list image sources, representing images, that will be placed in dataset, defaults to None
@@ -32,8 +33,10 @@ class DetectionDataset:
         """
         
         self.image_sources = image_sources or []
-        self.annotation = annotation or {}
-        self.samples = samples or {}
+        self.annotation = annotation or Annotation()
+        self.subsets = subsets or {}
+        
+        self.resizer = None
         
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
@@ -45,17 +48,19 @@ class DetectionDataset:
     def __getitem__(self, item):
         return self.image_sources[item]
 
-    def __add__(self, other):
+    def __add__(self, other: DetectionDataset):
         
         # Addition of image sources
         sum_image_sources = self.image_sources + other.image_sources
         
         # Addition of annotation
-        sum_annotation = self.annotation + other.annotation
+        # TODO: repeatable image processing
+        sum_annotation = self.annotation
+        self.annotation['images'].update(other.annotation['images'])
         
-        # Addition of samples
-        self_sample_names = set(self.samples.keys())
-        other_sample_names = set(other.samples.keys())
+        # Addition of susets
+        self_sample_names = set(self.subsets.keys())
+        other_sample_names = set(other.subsets.keys())
         
         # sum_sample_names - union of two sample names 
         sum_sample_names = self_sample_names or other_sample_names
@@ -66,29 +71,57 @@ class DetectionDataset:
         for name in sum_sample_names:
             sum_samples[name] = []
             if name in self_sample_names:
-                sum_samples[name] += self.samples[name]
+                sum_samples[name] += self.subsets[name]
             if name in other_sample_names:
-                sum_samples[name] += list(map(lambda x: x + len(self), other.samples[name]))
+                sum_samples[name] += list(map(lambda x: x + len(self), other.subsets[name]))
         
         return DetectionDataset(sum_image_sources, sum_annotation, sum_samples)
+
+    def resize(self, size: tuple):
+        assert len(size) == 2
+        
+        # Add resize fn to image sources
+        for img_src in self.image_sources:
+            img_src.preprocessing_fns.append(lambda x: cv2.resize(x, size))
+        
+        # Go through annotation and correct coordinates
+        new_width, new_height = size
+        for image_name in self.annotation.images:
+            labeled_image = self.annotation.images[image_name]
+            
+            old_width = labeled_image['width']
+            old_height = labeled_image['height']
+            
+            # Correct image size
+            labeled_image['width'] = new_width
+            labeled_image['height'] = new_height
+            
+            # Correct bbox coordinates of cur image
+            for bbox in labeled_image['annotations']:
+                x, y, w, h = bbox['bbox']
+                
+                x *= new_width / old_width
+                w *= new_width / old_width
+                y *= new_height / old_height
+                h *= new_height / old_height
+                
+                bbox['bbox'] = [x, y, w, h]
+                
     
     def rename(self, rename_callback: Callable):
         
         for i in range(len(self.image_sources)):
             
-            # Rename image source
+            # Rename image sources
             old_name = self.image_sources[i].name
-            new_name = rename_callback(self.image_sources[i].name)
+            new_name = rename_callback(old_name)
             self.image_sources[i].name = new_name
             
-            # Rename in bbox_map
+            # Rename annotations
             if old_name in self.annotation['images']:
-                image_info = self.annotation.bbox_map[old_name]
-                self.annotation.bbox_map.pop(old_name)
-                self.annotation.bbox_map[new_name] = image_info
-            # else:
-            #     self.annotation.bbox_map[new_name] = []
-            
+                image_info = self.annotation['images'][old_name]
+                self.annotation['images'].pop(old_name)
+                self.annotation['images'][new_name] = image_info
 
     def split_by_proportions(self, proportions: dict):
         all_idx = [i for i in range(len(self.image_sources))]
@@ -99,23 +132,23 @@ class DetectionDataset:
         split_end_idx = 0
 
         # Reset current split indexes
-        self.samples = {}
+        self.subsets = {}
 
         num_of_names = len(proportions.keys())
 
         for i, split_name in enumerate(proportions.keys()):
             split_end_idx += math.ceil(proportions[split_name] * length)
-            self.samples[split_name] = all_idx[split_start_idx: split_end_idx]
+            self.subsets[split_name] = all_idx[split_start_idx: split_end_idx]
             split_start_idx = split_end_idx
 
             if i + 1 == num_of_names and split_end_idx < len(all_idx):
-                self.samples[split_name] += all_idx[split_end_idx: len(all_idx)]
+                self.subsets[split_name] += all_idx[split_end_idx: len(all_idx)]
         
         # logging
         message = "In dataset the following splits was created: "
-        for i, split_name in enumerate(self.samples.keys()):
-            message += f"{split_name}({len(self.samples[split_name])})"
-            if i != len(self.samples.keys()) - 1:
+        for i, split_name in enumerate(self.subsets.keys()):
+            message += f"{split_name}({len(self.subsets[split_name])})"
+            if i != len(self.subsets.keys()) - 1:
                 message += ", "
         self.logger.info(message)
 
@@ -126,7 +159,7 @@ class DetectionDataset:
                        if os.path.isdir(os.path.join(yolo_dataset_path, name))]
 
         # Reset current split indexes
-        self.samples = {}
+        self.subsets = {}
 
         for split_name in split_names:
 
@@ -139,23 +172,23 @@ class DetectionDataset:
                 orig_names_set.add(name)
 
             # If new_name in orig dataset split then update split indexes of current dataset
-            self.samples[split_name] = []
+            self.subsets[split_name] = []
             for i, image_source in enumerate(self.image_sources):
                 new_name = image_source.name
                 if new_name in orig_names_set:
-                    self.samples[split_name].append(i)
+                    self.subsets[split_name].append(i)
     
     def add_with_proportion(self, dataset, proportions: dict):
         
-        assert proportions.keys() == self.samples.keys()
+        assert proportions.keys() == self.subsets.keys()
         
         orig_length = len(self)
         dataset_length = len(dataset)
         result_length = orig_length + dataset_length
         
         dataset_proportions = {}
-        for name in self.samples:
-            orig_sample_length = len(self.samples[name])
+        for name in self.subsets:
+            orig_sample_length = len(self.subsets[name])
             result_sample_length = proportions[name] * result_length
             dataset_proportions[name] = (result_sample_length - orig_sample_length) / dataset_length
         
@@ -164,43 +197,65 @@ class DetectionDataset:
         
         # logging
         message = "Create summary dataset with samples: "
-        for i, split_name in enumerate(self.samples.keys()):
-            message += f"{split_name}({len(self.samples[split_name])})"
-            if i != len(self.samples.keys()) - 1:
+        for i, split_name in enumerate(self.subsets.keys()):
+            message += f"{split_name}({len(self.subsets[split_name])})"
+            if i != len(self.subsets.keys()) - 1:
                 message += ", "
         self.logger.info(message)
         
         return new_dataset
 
+    def remove_empty_images(self):
+        new_img_srcs = []
+        for img_src in self.image_sources:
+            name = img_src.name
+            if name not in self.annotation.images:
+                continue
+            
+            bboxes = self.annotation.images[name]['annotations']
+            if len(bboxes) == 0:
+                continue
+            
+            new_img_srcs.append(img_src)
+        self.image_sources = new_img_srcs
+    
     def install(self, 
                 dataset_path: str,
                 dataset_name: str = 'dataset',
-                image_ext: str = 'jpg', 
+                image_ext: str = '.jpg', 
                 install_images: bool = True, 
                 install_labels: bool = True, 
                 # install_annotations: bool = True, 
                 install_description: bool = True):
         
-        for split_name in self.samples.keys():
-            split_ids = self.samples[split_name]    
+        for subset_name in self.subsets.keys():
+            subset_ids = self.subsets[subset_name]    
             
             if install_images:
-                images_dir = os.path.join(dataset_path, split_name, 'images')
+                images_dir = os.path.join(dataset_path, subset_name, 'images')
                 os.makedirs(images_dir, exist_ok=True)
                 
-                for i, split_idx in enumerate(split_ids):
+                for i, split_idx in enumerate(subset_ids):
+                    # image_source = self.image_sources[split_idx] 
+                    # img = cv2.imread(image_source)
+                    
+                    if self.resizer is not None:
+                        img = self.resizer(img)
+                    
                     image_source = self.image_sources[split_idx] 
-                    image_source.save(os.path.join(images_dir, image_source.name + image_ext))                
-                    self.logger.info(f"[{i + 1}/{len(split_ids)}] " + 
-                                     f"{split_name}:{self.image_sources[i].name}{image_ext} is done")
-                self.logger.info(f"{split_name} is done")
+                    # save_img_path = os.path.join(images_dir, image_source.name + image_ext)
+                    image_source.save(images_dir, image_ext, cache_dir=os.path.join(dataset_path, '.cvml2_cache'))                
+                    
+                    self.logger.info(f"[{i + 1}/{len(subset_ids)}] " + 
+                                     f"{subset_name}:{self.image_sources[split_idx].name}{image_ext} is done")
+                self.logger.info(f"{subset_name} is done")
 
             if install_labels:
-                labels_dir = os.path.join(dataset_path, split_name, 'labels')
+                labels_dir = os.path.join(dataset_path, subset_name, 'labels')
                 os.makedirs(labels_dir, exist_ok=True)
-                sample_annotation = self._get_sample_annotation(split_name)
+                sample_annotation = self._get_sample_annotation(subset_name)
                 write_yolo_det(sample_annotation, labels_dir)
-                self.logger.info(f"{split_name}:yolo_labels is done")
+                self.logger.info(f"{subset_name}:yolo_labels is done")
             
             # if install_annotations:
             #     annotation_dir = os.path.join(dataset_path, split_name, 'annotations')
@@ -219,9 +274,10 @@ class DetectionDataset:
         sample_classes = self.annotation['categories']
         sample_images = {}
         
-        for i in self.samples[sample_name]:
-            image_source = self.image_sources[i]
-            name = image_source.name
+        for i in self.subsets[sample_name]:
+            name = self.image_sources[i].name
+            if name not in self.annotation['images']:
+                continue
             sample_images[name] = self.annotation['images'][name]
         
         sample_annotation = {'categories': sample_classes, 'images': sample_images}

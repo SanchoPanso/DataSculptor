@@ -68,18 +68,19 @@ class ISDataset(DetectionDataset):
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
 
-    
     def __add__(self, other):
         
         # Addition of image sources
         sum_image_sources = self.image_sources + other.image_sources
         
         # Addition of annotation
-        sum_annotation = self.annotation + other.annotation
+        # TODO: repeatable image processing
+        sum_annotation = self.annotation
+        self.annotation['images'].update(other.annotation['images'])
         
-        # Addition of samples
-        self_sample_names = set(self.samples.keys())
-        other_sample_names = set(other.samples.keys())
+        # Addition of susets
+        self_sample_names = set(self.subsets.keys())
+        other_sample_names = set(other.subsets.keys())
         
         # sum_sample_names - union of two sample names 
         sum_sample_names = self_sample_names or other_sample_names
@@ -90,9 +91,9 @@ class ISDataset(DetectionDataset):
         for name in sum_sample_names:
             sum_samples[name] = []
             if name in self_sample_names:
-                sum_samples[name] += self.samples[name]
+                sum_samples[name] += self.subsets[name]
             if name in other_sample_names:
-                sum_samples[name] += list(map(lambda x: x + len(self), other.samples[name]))
+                sum_samples[name] += list(map(lambda x: x + len(self), other.subsets[name]))
         
         return ISDataset(sum_image_sources, sum_annotation, sum_samples)
     
@@ -106,26 +107,34 @@ class ISDataset(DetectionDataset):
                 # install_annotations: bool = True, 
                 install_description: bool = True):
         
-        for split_name in self.samples.keys():
-            split_ids = self.samples[split_name]    
+        for subset_name in self.subsets.keys():
+            subset_ids = self.subsets[subset_name]    
             
             if install_images:
-                images_dir = os.path.join(dataset_path, split_name, 'images')
+                images_dir = os.path.join(dataset_path, subset_name, 'images')
                 os.makedirs(images_dir, exist_ok=True)
                 
-                for i, split_idx in enumerate(split_ids):
+                for i, split_idx in enumerate(subset_ids):
+                    # image_source = self.image_sources[split_idx] 
+                    # img = cv2.imread(image_source)
+                    
+                    if self.resizer is not None:
+                        img = self.resizer(img)
+                    
                     image_source = self.image_sources[split_idx] 
-                    image_source.save(os.path.join(images_dir, image_source.name + image_ext))                
-                    self.logger.info(f"[{i + 1}/{len(split_ids)}] " + 
-                                     f"{split_name}:{self.image_sources[i].name}{image_ext} is done")
-                self.logger.info(f"{split_name} is done")
+                    # save_img_path = os.path.join(images_dir, image_source.name + image_ext)
+                    image_source.save(images_dir, image_ext, cache_dir=os.path.join(dataset_path, '.cvml2_cache'))                
+                    
+                    self.logger.info(f"[{i + 1}/{len(subset_ids)}] " + 
+                                     f"{subset_name}:{self.image_sources[split_idx].name}{image_ext} is done")
+                self.logger.info(f"{subset_name} is done")
 
             if install_labels:
-                labels_dir = os.path.join(dataset_path, split_name, 'labels')
+                labels_dir = os.path.join(dataset_path, subset_name, 'labels')
                 os.makedirs(labels_dir, exist_ok=True)
-                sample_annotation = self._get_sample_annotation(split_name)
+                sample_annotation = self._get_sample_annotation(subset_name)
                 write_yolo_iseg(sample_annotation, labels_dir)
-                self.logger.info(f"{split_name}:yolo_labels is done")
+                self.logger.info(f"{subset_name}:yolo_labels is done")
             
             # if install_annotations:
             #     annotation_dir = os.path.join(dataset_path, split_name, 'annotations')
@@ -138,7 +147,5 @@ class ISDataset(DetectionDataset):
         if install_description:
             self._write_description(os.path.join(dataset_path, 'data.yaml'), dataset_name)
             self.logger.info(f"Description is done")
-    
-
 
 
