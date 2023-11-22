@@ -9,7 +9,7 @@ from abc import ABC
 from typing import List, Set, Dict, Callable
 from enum import Enum
 
-from cvml2.annotation import write_yolo_iseg
+from cvml2.annotation import write_yolo_iseg, write_coco
 from cvml2.det_dataset import DetectionDataset
 from cvml2.image_source import ImageSource
 
@@ -70,33 +70,67 @@ class ISDataset(DetectionDataset):
 
     def __add__(self, other):
         
-        # Addition of image sources
-        sum_image_sources = self.image_sources + other.image_sources
+        sum_dataset = super().__add__(other)
         
-        # Addition of annotation
-        # TODO: repeatable image processing
-        sum_annotation = self.annotation
-        self.annotation['images'].update(other.annotation['images'])
-        
-        # Addition of susets
-        self_sample_names = set(self.subsets.keys())
-        other_sample_names = set(other.subsets.keys())
-        
-        # sum_sample_names - union of two sample names 
-        sum_sample_names = self_sample_names or other_sample_names
-        sum_samples = {}
-        
-        # In new samples self indexes remain their values, others - are addicted with number of images in self
-        # (other images addict to the end of common list) 
-        for name in sum_sample_names:
-            sum_samples[name] = []
-            if name in self_sample_names:
-                sum_samples[name] += self.subsets[name]
-            if name in other_sample_names:
-                sum_samples[name] += list(map(lambda x: x + len(self), other.subsets[name]))
-        
-        return ISDataset(sum_image_sources, sum_annotation, sum_samples)
+        return ISDataset(sum_dataset.image_sources, sum_dataset.annotation, sum_dataset.subsets)
     
+    
+    def resize(self, size: tuple):
+        assert len(size) == 2
+        
+        # Add resize fn to image sources
+        for img_src in self.image_sources:
+            img_src.preprocessing_fns.append(lambda x: cv2.resize(x, size))
+        
+        # Go through annotation and correct coordinates
+        new_width, new_height = size
+        for image_name in self.annotation.images:
+            labeled_image = self.annotation.images[image_name]
+            
+            old_width = labeled_image['width']
+            old_height = labeled_image['height']
+            
+            # Correct image size
+            labeled_image['width'] = new_width
+            labeled_image['height'] = new_height
+            
+            # Correct bbox coordinates of cur image
+            for bbox in labeled_image['annotations']:
+                x, y, w, h = bbox['bbox']
+                
+                x *= new_width / old_width
+                w *= new_width / old_width
+                y *= new_height / old_height
+                h *= new_height / old_height
+                
+                bbox['bbox'] = [x, y, w, h]
+                
+                segmentation = bbox['segmentation']
+                for segment in segmentation:
+                    segment = np.array(segment).astype('float64').reshape(-1, 1, 2)
+                    segment[..., 0] *= new_width / old_width
+                    segment[..., 1] *= new_height / old_height
+                    segment = segment.reshape(-1).astype('int32').tolist()
+    
+    
+    def remove_empty_images(self):
+        new_img_srcs = []
+        for img_src in self.image_sources:
+            name = img_src.name
+            if name not in self.annotation.images:
+                continue
+            
+            bboxes = self.annotation.images[name]['annotations']
+            bboxes_is_empty = False
+            for bbox in bboxes:
+                if len(bbox.segmentation) == 0:
+                    bboxes_is_empty = True
+                    break
+            if bboxes_is_empty:
+                continue
+            
+            new_img_srcs.append(img_src)
+        self.image_sources = new_img_srcs
 
     def install(self, 
                 dataset_path: str,
@@ -104,8 +138,10 @@ class ISDataset(DetectionDataset):
                 image_ext: str = '.jpg', 
                 install_images: bool = True, 
                 install_labels: bool = True, 
-                # install_annotations: bool = True, 
+                install_annotations: bool = False, 
                 install_description: bool = True):
+        
+        os.makedirs(dataset_path, exist_ok=True)
         
         for subset_name in self.subsets.keys():
             subset_ids = self.subsets[subset_name]    
@@ -136,13 +172,13 @@ class ISDataset(DetectionDataset):
                 write_yolo_iseg(sample_annotation, labels_dir)
                 self.logger.info(f"{subset_name}:yolo_labels is done")
             
-            # if install_annotations:
-            #     annotation_dir = os.path.join(dataset_path, split_name, 'annotations')
-            #     os.makedirs(annotation_dir, exist_ok=True)
-            #     coco_path = os.path.join(annotation_dir, 'data.json')
-            #     sample_annotation = self._get_sample_annotation(split_name)
-            #     write_coco(sample_annotation, coco_path)
-            #     self.logger.info(f"{split_name}:coco_annotation is done")
+            if install_annotations:
+                annotation_dir = os.path.join(dataset_path, subset_name, 'annotations')
+                os.makedirs(annotation_dir, exist_ok=True)
+                coco_path = os.path.join(annotation_dir, 'data.json')
+                sample_annotation = self._get_sample_annotation(subset_name)
+                write_coco(sample_annotation, coco_path, image_ext)
+                self.logger.info(f"{subset_name}:coco_annotation is done")
             
         if install_description:
             self._write_description(os.path.join(dataset_path, 'data.yaml'), dataset_name)

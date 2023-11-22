@@ -4,7 +4,7 @@ import logging
 __version__ = '0.1.0'
 
 from cvml2.annotation import Annotation, AnnotatedImage
-from cvml2.annotation import read_coco, write_yolo_det, write_yolo_iseg
+from cvml2.annotation import read_coco, write_coco, write_yolo_det, write_yolo_iseg
 
 from cvml2.image_source import ImageSource, CropImageSource, paths2image_sources
 from cvml2.det_dataset import DetectionDataset

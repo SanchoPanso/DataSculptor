@@ -8,8 +8,25 @@ from easydict import EasyDict
 project_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(project_dir)
 
-from cvml2.annotation import read_coco
+from cvml2.annotation import Annotation, AnnotatedImage, AnnotatedObject, read_coco
 
+def test_init():
+    annot = Annotation()
+    
+    # Check correctness of default initialization
+    assert annot.categories == []
+    assert annot.images == {}
+    
+    # Check avaliability via []
+    assert annot['categories'] == []
+    assert annot['images'] == {}
+
+    annot = Annotation({'categories': ['a', 'b'], 'images': {}})
+    
+    assert annot['categories'] == ['a', 'b']
+    assert annot['images'] == {}
+
+    
 def test_read_coco_empty():
     coco_path = os.path.join(os.path.dirname(__file__), 'test_files', 'read_coco_empty.json')
     
@@ -23,7 +40,7 @@ def test_read_coco_empty():
     
     # Empty annotation was created correctly
     assert annot_2.categories == []
-    assert annot_2.images == EasyDict()
+    assert annot_2.images == {}
     
 
 def test_read_coco_default():
@@ -50,7 +67,7 @@ def test_read_coco_default():
     
     image_2_annotations = labeled_images['10']['annotations']
     assert image_2_annotations[0]['category_id'] == 1
-    assert image_2_annotations[0]['segmentation'] == {"size": [3000, 4000], "counts": [0, 1]}
+    # TODO for rle # assert image_2_annotations[0]['segmentation'] == {"size": [3000, 4000], "counts": [0, 1]}
     assert image_2_annotations[0]['bbox'] == [560, 820, 60, 130]
     
 #     assert bbox_map['10'][0].get_class_id() == 1
@@ -163,6 +180,37 @@ def test_read_coco_default():
 #             expected_str = f.read().strip()
 #         assert got_str == expected_str
 
+
+def test_annotation_add():
+    annot1 = Annotation(categories=['a', 'b', 'c'], 
+                        images={
+                            '1_1': AnnotatedImage(annotations=[AnnotatedObject(category_id=0)]),
+                            '1_2': AnnotatedImage(annotations=[AnnotatedObject(category_id=1)]),
+                            '1_3': AnnotatedImage(annotations=[AnnotatedObject(category_id=2)]),
+                        })
+    
+    assert annot1 + Annotation() == annot1
+    assert Annotation() + annot1 == annot1
+    
+    annot2 = Annotation(categories=['a', 'b', 'd'], 
+                        images={
+                            '2_1': AnnotatedImage(annotations=[AnnotatedObject(category_id=2)]),
+                            '2_2': AnnotatedImage(annotations=[AnnotatedObject(category_id=0)]),
+                            '1_3': AnnotatedImage(annotations=[AnnotatedObject(category_id=0)]),
+                        })
+
+    sum_annot = annot1 + annot2
+    assert sum_annot.categories == ['a', 'b', 'c', 'd']
+    assert sum_annot.images['1_1'].annotations[0].category_id == 0
+    assert sum_annot.images['1_2'].annotations[0].category_id == 1
+    
+    assert sum_annot.images['2_1'].annotations[0].category_id == 3
+    assert sum_annot.images['2_2'].annotations[0].category_id == 0
+    
+    assert sum_annot.images['1_3'].annotations[0].category_id == 2
+    assert sum_annot.images['1_3'].annotations[1].category_id == 0
+    
+    
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__]))

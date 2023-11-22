@@ -6,15 +6,46 @@ from typing import List, Dict, Union
 from easydict import EasyDict
 
 
+class AnnotatedObject(EasyDict):
+    bbox: List[float]
+    category_id: int
+    segmentation: List[List[float]]
+    
+    def __init__(self, d=None, **kwargs):
+        if d is None:
+            d = {'bbox': [0] * 4, 'category_id': 0, 'segmentation': []}
+        super().__init__(d, **kwargs)
+
+
 class AnnotatedImage(EasyDict):
     height: int
     width: int
-    annotations: List[dict]
+    annotations: List[AnnotatedObject]
     
     def __init__(self, d=None, **kwargs):
         if d is None:
             d = {'width': 0, 'height': 0, 'annotations': []}
         super().__init__(d, **kwargs)
+    
+def change_category_ids(image: AnnotatedImage, category_changes: Dict[int, int]) -> AnnotatedImage:
+    """Update category indecies according to given map. 
+    Indecies that is not mentioned in this map will be ignored
+
+    :param category_changes: dict with key - old category id, value - new category i
+    :return: 
+    """
+    
+    new_image = AnnotatedImage(width=image.width, height=image.height)
+    for bbox in image.annotations:
+        category_id = bbox.category_id
+        
+        if category_id in category_changes:
+            new_category_id = category_changes[category_id]
+            bbox.category_id = new_category_id
+        
+        new_image.annotations.append(bbox)
+    
+    return new_image
     
 
 class Annotation(EasyDict):
@@ -31,6 +62,34 @@ class Annotation(EasyDict):
         if d is None:
             d = {'categories': [], 'images': {}}
         super().__init__(d, **kwargs)
+    
+    def __add__(self, other: 'Annotation') -> 'Annotation':
+        additional_cats = [cat for cat in other.categories if cat not in self.categories]
+        sum_cats = self.categories + additional_cats
+        
+        other_cat_changes = {}
+        for i, other_cat in enumerate(other.categories):
+            if other_cat not in additional_cats:
+                continue
+            other_cat_changes[i] = sum_cats.index(other_cat)
+        
+        sum_images = EasyDict(self.images.copy())
+        unique_names = set(other.images.keys()) - set(self.images.keys())
+        repeatable_names = set(other.images.keys()) - unique_names
+        
+        for name in unique_names:
+            other_image = change_category_ids(other.images[name], other_cat_changes)
+            sum_images[name] = other_image
+        
+        for name in repeatable_names:
+            other_image = change_category_ids(other.images[name], other_cat_changes)
+            sum_images[name] = AnnotatedImage(
+                width=self.images[name].width, 
+                height=self.images[name].height, 
+                annotations=self.images[name].annotations + other_image.annotations)
+        
+        sum_annot = Annotation(categories=sum_cats, images=sum_images)        
+        return sum_annot
     
 
 def read_coco(path: Union[str, bytes, os.PathLike]) -> Annotation:
@@ -79,8 +138,12 @@ def read_coco(path: Union[str, bytes, os.PathLike]) -> Annotation:
         image_id = coco_bbox['image_id']
         ctg_id = coco_bbox['category_id']
         bbox_coords = coco_bbox['bbox']
-        segmentation = coco_bbox['segmentation']
         
+        if type(coco_bbox['segmentation']) == list:
+            segmentation = coco_bbox['segmentation']
+        else:
+            segmentation = rle2polygons(coco_bbox['segmentation'])
+            
         file_name = coco_images_conformity[image_id]
         bbox = {
             'category_id': coco_categories_conformity[ctg_id]['num'],
@@ -265,6 +328,30 @@ def xywh2xywhn(xywh, size):
     w /= width
     h /= height
     return (x, y, w, h)
+
+
+def rle2polygons(rle: dict) -> list:
+    size = rle['size']
+    counts = rle['counts']
+    
+    mask = np.zeros((size[0] * size[1],), dtype='uint8')
+    idx = 0
+    color = 0
+    
+    for c in counts:
+        mask[idx: idx + c] = color
+        color = (color + 1) % 2
+        idx += c
+    
+    mask = mask.reshape((size[0], size[1]))
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    polygons = []
+    for cnt in contours:
+        polygon = cnt.astype('int32').reshape(-1).tolist()
+        polygons.append(polygon)
+    
+    return polygons
 
 
 # annot = read_coco(r'C:\Users\HP\Downloads\360_17_0-6\annotations\instances_default.json')

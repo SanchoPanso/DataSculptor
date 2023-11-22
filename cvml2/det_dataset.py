@@ -20,7 +20,11 @@ class DetectionDataset:
     Class of dataset, representing sets of labeled images with bounding boxes, 
     which are used in detection tasks.
     """
-
+    
+    image_sources: List[ImageSource]
+    annotation: Annotation
+    subsets: Dict[str, int]
+    
     def __init__(self, 
                  image_sources: List[ImageSource] = None,
                  annotation: Annotation = None, 
@@ -54,9 +58,9 @@ class DetectionDataset:
         sum_image_sources = self.image_sources + other.image_sources
         
         # Addition of annotation
-        # TODO: repeatable image processing
-        sum_annotation = self.annotation
-        self.annotation['images'].update(other.annotation['images'])
+        # sum_annotation = self.annotation
+        # self.annotation['images'].update(other.annotation['images'])
+        sum_annotation = self.annotation + other.annotation
         
         # Addition of susets
         self_sample_names = set(self.subsets.keys())
