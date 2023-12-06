@@ -1,7 +1,8 @@
 import cv2
 import os
 import numpy as np
-from cvml2 import DetectionDataset, Annotation, AnnotatedImage, ImageSource, CropImageSource
+from cvml2 import DetectionDataset, Annotation, AnnotatedImage, AnnotatedObject
+from cvml2 import ImageSource, CropImageSource
 
 
 def crop_dataset(dataset: DetectionDataset, size: tuple) -> DetectionDataset:
@@ -30,7 +31,7 @@ def crop_dataset(dataset: DetectionDataset, size: tuple) -> DetectionDataset:
 # TODO: subsets
 def crop_dataset_image(image_source: ImageSource, labeled_image: AnnotatedImage, crop_size: tuple):
     new_img_srcs, new_lbl_images = [], {}
-    width, height = labeled_image['width'], labeled_image['height']
+    width, height = labeled_image.width, labeled_image.height
     
     crop_w, crop_h = crop_size
     
@@ -47,13 +48,7 @@ def crop_dataset_image(image_source: ImageSource, labeled_image: AnnotatedImage,
             y1 = y2 - crop_h
 
             w, h = x2 - x1, y2 - y1
-            # new_img_src = CropImageSource(
-            #     image_source.path,
-            #     cnt,
-            #     lambda x: crop_image(x, crop_size),
-            #     image_source.preprocessing_fns, 
-            #     f"{image_source.name}_{cnt}",
-            # )
+            
             new_img_src = CropImageSource(
                 image_source,
                 cnt,
@@ -64,7 +59,7 @@ def crop_dataset_image(image_source: ImageSource, labeled_image: AnnotatedImage,
             
             new_bboxes = []
             for bbox in labeled_image.annotations:
-                old_x, old_y, old_w, old_h = bbox['bbox']
+                old_x, old_y, old_w, old_h = bbox.bbox
                 if old_x >= x2 or old_y >= y2:
                     continue
                 if old_x + old_w <= x1 or old_y + old_h <= y1:
@@ -80,18 +75,19 @@ def crop_dataset_image(image_source: ImageSource, labeled_image: AnnotatedImage,
                 if new_h + new_w < 10:
                     continue
                 
-                segmentation = bbox['segmentation']
+                segmentation = bbox.segmentation
                 if len(segmentation) != 0:
                     new_segmentation = crop_segmentation(segmentation, (x1, y1, x2, y2))
                 else:
                     new_segmentation = segmentation
                     
                 new_bbox = {
-                    'category_id': bbox['category_id'],
+                    'category_id': bbox.category_id,
                     'bbox': [new_x, new_y, new_w, new_h],
                     'bbox_mode': 'xywh',
                     'segmentation': new_segmentation,
                 }
+                new_bbox = AnnotatedObject(**new_bbox)
                 new_bboxes.append(new_bbox)
             
             new_lbl_image = AnnotatedImage(width=w, height=h, annotations=new_bboxes)

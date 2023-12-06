@@ -4,6 +4,7 @@ import glob
 import numpy as np
 import cvml2
 import json
+import datetime
 import rasterio
 import zipfile
 from pathlib import Path
@@ -11,45 +12,76 @@ from filesplit.split import Split
 
 
 def main():
-    data_path = r'D:\datasets\geo_ai\Garbage\annotated_garbage'
+    data_path = r'D:\datasets\geo_ai\satellite\source'
     data_dirs = [
-        'Farms_1',
-        'Farms_2',
-        'Farms_3',
-        'Farms_4',
-        'TMX_1_garbage',
-        'TMX_garbage_1',
-        'TMX_garbage_2',
-        'Imagery_separated_garbage',
+        'AAMDevelopedArea30cm_7_2',
+        'Satellite30_1_3_98',
+        'Satellite30_2_3_99',
+        'Satellite30_6_3_51',
     ] 
-    dataset_path = r'D:\datasets\geo_ai\Garbage\geo_ai_garbage_24092023_1'
     
-    dataset = cvml2.DetectionDataset([], cvml2.Annotation({'categories': ['garbage'], 'images': {}}))
-    
+    categories = ["roads"]
+
+    datasets_dir = r'D:\datasets\geo_ai\sattelite\prepared'
+    dataset_path = get_dataset_path(datasets_dir, 'geoai_satellite_deeplab')
+    print(dataset_path)
+    dataset = cvml2.ISDataset()
+
     for cur_dir in data_dirs:
-        src_images_dir = os.path.join(data_path, cur_dir, 'projected_images')
-        src_annot_path = os.path.join(data_path, cur_dir, 'annotations', 'projected.json')
+        src_images_dir = os.path.join(data_path, cur_dir, 'images')
+        src_annot_path = os.path.join(data_path, cur_dir, 'annotations', 'instances_default.json')
         
         annot = cvml2.read_coco(src_annot_path)
         image_paths = glob.glob(os.path.join(src_images_dir, '*'))
         image_sources = cvml2.paths2image_sources(image_paths)
         
-        cur_dataset = cvml2.DetectionDataset(image_sources, annot)
+        cur_dataset = cvml2.ISDataset(image_sources, annot)
         cur_dataset.rename(lambda x: cur_dir + '_' + x)
         cur_dataset = cvml2.crop_dataset(cur_dataset, (640, 640))
+        cur_dataset.annotation = change_annotation(cur_dataset.annotation, categories)
         cur_dataset.remove_empty_images()
-        cur_dataset.split_by_proportions({'valid': 0.2, 'train': 0.8})
+
+        cur_dataset.split_by_proportions({'val': 0.2, 'train': 0.8})
         
         dataset += cur_dataset
     
     dataset.install(
         dataset_path=dataset_path,
-        dataset_name='geo_ai_garbage',
+        dataset_name=os.path.basename(dataset_path),
         install_images=True,
-        install_labels=True,
+        install_labels=False,
+        install_annotations=True,
         install_description=True,
         image_ext='.png',
     )
+    
+    for subset in ['train', 'val']:
+        annotations_path = os.path.join(dataset_path, subset, 'annotations', 'data.json')
+        images_dir = os.path.join(dataset_path, subset, 'images')
+        masks_dir = os.path.join(dataset_path, subset, 'masks')
+        os.makedirs(masks_dir, exist_ok=True)
+        annot = cvml2.read_coco(annotations_path)
+        
+        for name in annot.images:
+            if not os.path.exists(os.path.join(images_dir, name + '.png')):
+                continue
+            
+            mask = np.zeros((640, 640), dtype='uint8')
+            for bbox in annot.images[name].annotations:
+                segmentation = bbox['segmentation']
+                
+                for segment in segmentation:
+                    segment = np.array(segment).reshape(-1, 1, 2)
+                    segment = segment.astype('int32')
+                    cv2.fillPoly(mask, [segment], 255)
+            
+            if mask.max() == 0:
+                os.remove(os.path.join(images_dir, name + '.png'))
+                continue
+            
+            cv2.imwrite(os.path.join(masks_dir, name + '.png'), mask)
+            print('Mask:', subset, name)
+        
     
     # Split the dataset into 999 MB blocks
     create_splitted_dataset(
@@ -57,14 +89,66 @@ def main():
         dataset_path,
         999*1024*1024,
     )
+
+
+def get_dataset_path(datasets_dir: str, base_name: str):
+    now = datetime.datetime.now()
+    strf_date = now.strftime('%d%m%Y')
+    name_with_date = f"{base_name}_{strf_date}"
+    version_num = len(glob.glob(os.path.join(datasets_dir, name_with_date + '*')))
+    name = f"{name_with_date}__v_{version_num}"
+    
+    return os.path.join(datasets_dir, name)
+
+
+def change_annotation(annot: cvml2.Annotation, new_classes: list):
+    classes = annot.categories
+    
+    conformity = {}
+    for i in range(len(classes)):
+        if classes[i] in new_classes:
+            conformity[i] = new_classes.index(classes[i])
+    
+    images = annot.images
+    for name in images:
+        new_bboxes = []
+        
+        for bbox in images[name].annotations:
+            if bbox.category_id not in conformity:
+                continue
+            
+            bbox.category_id = conformity[bbox.category_id]
+            new_bboxes.append(bbox)
+        images[name].annotations = new_bboxes
+        
+    annot.categories = new_classes
+    return annot
     
 
+def delete_small_bboxes(annot: cvml2.Annotation):
+    images = annot.images
+    for name in images:
+        new_bboxes = []
+        
+        for bbox in images[name].annotations:
+            if annot.categories[bbox.category_id] != 'household_garbage':
+                continue
+        
+            x, y, w, h = bbox['bbox']
+            if w > 20 and h > 20:
+                bbox.category_id = 0
+                new_bboxes.append(bbox)
+        images[name].annotations = new_bboxes
+        
+    annot.categories = ['household_garbage']
+    return annot
+    
 
 def create_splitted_dataset(src_dir: str, dst_dir: str, block_volume: int):
     
     os.makedirs(dst_dir, exist_ok=True)
     
-    for sample_name in ['train', 'valid']:
+    for sample_name in ['train', 'val']:
         sample_path = os.path.join(src_dir, sample_name)
         
         with zipfile.ZipFile(f"{sample_path}.zip", mode="w") as archive:
