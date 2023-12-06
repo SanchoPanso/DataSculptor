@@ -1,1 +1,98 @@
-{"licenses": [{"name": "", "id": 0, "url": ""}], "info": {"contributor": "", "date_created": "", "description": "", "url": "", "version": "", "year": ""}, "categories": [{"id": 1, "name": "comet", "supercategory": ""}, {"id": 2, "name": "other", "supercategory": ""}], "images": [{"id": 1, "width": 2448, "height": 2048, "file_name": "1.png", "license": 0, "flickr_url": "", "coco_url": "", "date_captured": 0}, {"id": 2, "width": 2448, "height": 2048, "file_name": "10.png", "license": 0, "flickr_url": "", "coco_url": "", "date_captured": 0}], "annotations": [{"id": 1, "image_id": 1, "category_id": 1, "segmentation": [[1200, 500, 1260, 500, 1200, 1050]], "area": 33000.0, "bbox": [1200.0, 500.0, 60.0, 550.0], "iscrowd": 0, "attributes": {"occluded": false, "rotation": 0.0}}, {"id": 2, "image_id": 2, "category_id": 2, "segmentation": {"size": [2448, 2048], "counts": [0, 1]}, "area": 7800.0, "bbox": [560.0, 820.0, 60.0, 130.0], "iscrowd": 0, "attributes": {"occluded": false, "rotation": 0.0}}]}
+{
+    "licenses": [
+        {
+            "name": "",
+            "id": 0,
+            "url": ""
+        }
+    ],
+    "info": {
+        "contributor": "",
+        "date_created": "",
+        "description": "",
+        "url": "",
+        "version": "",
+        "year": ""
+    },
+    "categories": [
+        {
+            "id": 1,
+            "name": "comet",
+            "supercategory": ""
+        },
+        {
+            "id": 2,
+            "name": "other",
+            "supercategory": ""
+        }
+    ],
+    "images": [
+        {
+            "id": 1,
+            "width": 2448,
+            "height": 2048,
+            "file_name": "1.png",
+            "license": 0,
+            "flickr_url": "",
+            "coco_url": "",
+            "date_captured": 0
+        },
+        {
+            "id": 2,
+            "width": 3000,
+            "height": 4000,
+            "file_name": "10.png",
+            "license": 0,
+            "flickr_url": "",
+            "coco_url": "",
+            "date_captured": 0
+        }
+    ],
+    "annotations": [
+        {
+            "id": 1,
+            "image_id": 1,
+            "category_id": 1,
+            "segmentation": [
+                [
+                    1200,
+                    500,
+                    1260,
+                    500,
+                    1200,
+                    1050
+                ]
+            ],
+            "area": 33000.0,
+            "bbox": [
+                1200.0,
+                500.0,
+                60.0,
+                550.0
+            ],
+            "iscrowd": 0,
+            "attributes": {
+                "occluded": false,
+                "rotation": 0.0
+            }
+        },
+        {
+            "id": 2,
+            "image_id": 2,
+            "category_id": 2,
+            "segmentation": [],
+            "area": 7800.0,
+            "bbox": [
+                560.0,
+                820.0,
+                60.0,
+                130.0
+            ],
+            "iscrowd": 0,
+            "attributes": {
+                "occluded": false,
+                "rotation": 0.0
+            }
+        }
+    ]
+}

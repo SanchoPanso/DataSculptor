@@ -5,10 +5,7 @@ from pathlib import Path
 import json
 from easydict import EasyDict
 
-project_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-sys.path.append(project_dir)
-
-from cvml2.annotation import Annotation, AnnotatedImage, AnnotatedObject, read_coco
+from cvml2 import Annotation, AnnotatedImage, AnnotatedObject, read_coco, write_coco
 
 def test_init():
     annot = Annotation()
@@ -16,15 +13,11 @@ def test_init():
     # Check correctness of default initialization
     assert annot.categories == []
     assert annot.images == {}
-    
-    # Check avaliability via []
-    assert annot['categories'] == []
-    assert annot['images'] == {}
 
-    annot = Annotation({'categories': ['a', 'b'], 'images': {}})
+    annot = Annotation(categories=['a', 'b'], images={})
     
-    assert annot['categories'] == ['a', 'b']
-    assert annot['images'] == {}
+    assert annot.categories == ['a', 'b']
+    assert annot.images == {}
 
     
 def test_read_coco_empty():
@@ -57,62 +50,57 @@ def test_read_coco_default():
     assert labeled_images['1'].width == 2448  
     assert labeled_images['1'].height == 2048  
     
-    image_1_annotations = labeled_images['1']['annotations']
-    assert image_1_annotations[0]['category_id'] == 0
-    assert image_1_annotations[0]['segmentation'] == [[1200, 500, 1260, 500, 1200, 1050]]
-    assert image_1_annotations[0]['bbox'] == [1200, 500, 60, 550]
+    image_1_annotations = labeled_images['1'].annotations
+    assert image_1_annotations[0].category_id == 0
+    assert image_1_annotations[0].segmentation == [[1200, 500, 1260, 500, 1200, 1050]]
+    assert image_1_annotations[0].bbox == [1200, 500, 60, 550]
     
     assert labeled_images['10'].width == 3000  
     assert labeled_images['10'].height == 4000  
     
-    image_2_annotations = labeled_images['10']['annotations']
-    assert image_2_annotations[0]['category_id'] == 1
+    image_2_annotations = labeled_images['10'].annotations
+    assert image_2_annotations[0].category_id == 1
     # TODO for rle # assert image_2_annotations[0]['segmentation'] == {"size": [3000, 4000], "counts": [0, 1]}
-    assert image_2_annotations[0]['bbox'] == [560, 820, 60, 130]
+    assert image_2_annotations[0].bbox == [560, 820, 60, 130]
+
+def test_write_coco():
+
+    annot = Annotation(categories=['comet', 'other'], 
+                       images={
+                           '1': AnnotatedImage(
+                               width=2448, 
+                               height=2048, 
+                               annotations=[AnnotatedObject(
+                                   category_id=0, 
+                                   bbox=[1200, 500, 60, 550],
+                                   segmentation=[[1200, 500, 1260, 500, 1200, 1050]])
+                            ]
+                            ),
+                           
+                            '10': AnnotatedImage(
+                               width=3000, 
+                               height=4000, 
+                               annotations=[AnnotatedObject(
+                                   category_id=1, 
+                                   bbox=[560, 820, 60, 130])
+                            ]
+                            ),
+                        })
+    result_path = os.path.join(os.path.dirname(__file__), 'test_files', 'test_coco_2.json')
+    write_coco(annot, result_path, image_ext='.png')
+
+    coco_path = os.path.join(os.path.dirname(__file__), 'test_files', 'test_coco.json')
+    with open(result_path) as f:
+        got_dict = json.load(f)
+    with open(coco_path) as f:
+        expected_dict = json.load(f)
     
-#     assert bbox_map['10'][0].get_class_id() == 1
-#     assert bbox_map['10'][0].get_segmentation() == {"size": [2448, 2048], "counts": [0, 1]}
-#     assert bbox_map['10'][0].get_coordinates() == (560, 820, 60, 130)
-#     assert bbox_map['10'][0].get_image_size() == (2448, 2048)
-#     assert bbox_map['10'][0].get_confidence() == 1.0
-#     assert bbox_map['10'][0].get_bb_type() == BBType.GroundTruth
-
-
-# def test_write_coco():
-
-#     bbox_1 = BoundingBox(0, 1200, 500, 60, 550,
-#                          class_confidence=1.0,
-#                          image_name='1',
-#                          type_coordinates=CoordinatesType.Absolute,
-#                          img_size=(2448, 2048),
-#                          bb_type=BBType.GroundTruth,
-#                          format=BBFormat.XYWH,
-#                          segmentation=[[1200, 500, 1260, 500, 1200, 1050]])
-#     bbox_2 = BoundingBox(1, 560, 820, 60, 130,
-#                          class_confidence=1.0,
-#                          image_name='10',
-#                          type_coordinates=CoordinatesType.Absolute,
-#                          img_size=(2448, 2048),
-#                          bb_type=BBType.GroundTruth,
-#                          format=BBFormat.XYWH,
-#                          segmentation={"size": [2448, 2048], "counts": [0, 1]})
-    
-#     classes = ['comet', 'other']
-#     bbox_map = {'1': [bbox_1], '10': [bbox_2]}
-#     annot = Annotation(classes, bbox_map)
-#     result_path = os.path.join(os.path.dirname(__file__), 'test_files', 'test_coco_2.json')
-#     write_coco(annot, result_path, image_ext='.png')
-
-#     coco_path = os.path.join(os.path.dirname(__file__), 'test_files', 'test_coco.json')
-#     with open(result_path) as f:
-#         got_dict = json.load(f)
-#     with open(coco_path) as f:
-#         expected_dict = json.load(f)
-    
-#     assert got_dict['licenses'] == expected_dict['licenses']
-#     assert got_dict['info'] == expected_dict['info']
-#     assert got_dict['images'] == expected_dict['images']
-#     assert got_dict['annotations'] == expected_dict['annotations']
+    assert got_dict['licenses'] == expected_dict['licenses']
+    assert got_dict['info'] == expected_dict['info']
+    print(got_dict['images'])
+    print(expected_dict['images'])
+    assert got_dict['images'] == expected_dict['images']
+    assert got_dict['annotations'] == expected_dict['annotations']
 
 
 # def test_read_yolo():
