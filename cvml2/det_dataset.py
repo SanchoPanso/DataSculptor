@@ -93,23 +93,23 @@ class DetectionDataset:
         for image_name in self.annotation.images:
             labeled_image = self.annotation.images[image_name]
             
-            old_width = labeled_image['width']
-            old_height = labeled_image['height']
+            old_width = labeled_image.width
+            old_height = labeled_image.height
             
             # Correct image size
-            labeled_image['width'] = new_width
-            labeled_image['height'] = new_height
+            labeled_image.width = new_width
+            labeled_image.height = new_height
             
             # Correct bbox coordinates of cur image
-            for bbox in labeled_image['annotations']:
-                x, y, w, h = bbox['bbox']
+            for bbox in labeled_image.annotations:
+                x, y, w, h = bbox.bbox
                 
                 x *= new_width / old_width
                 w *= new_width / old_width
                 y *= new_height / old_height
                 h *= new_height / old_height
                 
-                bbox['bbox'] = [x, y, w, h]
+                bbox.bbox = [x, y, w, h]
                 
     
     def rename(self, rename_callback: Callable):
@@ -122,10 +122,10 @@ class DetectionDataset:
             self.image_sources[i].name = new_name
             
             # Rename annotations
-            if old_name in self.annotation['images']:
-                image_info = self.annotation['images'][old_name]
-                self.annotation['images'].pop(old_name)
-                self.annotation['images'][new_name] = image_info
+            if old_name in self.annotation.images:
+                image_info = self.annotation.images[old_name]
+                self.annotation.images.pop(old_name)
+                self.annotation.images[new_name] = image_info
 
     def split_by_proportions(self, proportions: dict):
         all_idx = [i for i in range(len(self.image_sources))]
@@ -216,7 +216,7 @@ class DetectionDataset:
             if name not in self.annotation.images:
                 continue
             
-            bboxes = self.annotation.images[name]['annotations']
+            bboxes = self.annotation.images[name].annotations
             if len(bboxes) == 0:
                 continue
             
@@ -280,9 +280,9 @@ class DetectionDataset:
         
         for i in self.subsets[sample_name]:
             name = self.image_sources[i].name
-            if name not in self.annotation['images']:
+            if name not in self.annotation.images:
                 continue
-            sample_images[name] = self.annotation['images'][name]
+            sample_images[name] = self.annotation.images[name]
         
         sample_annotation = {'categories': sample_classes, 'images': sample_images}
         return sample_annotation

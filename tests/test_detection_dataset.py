@@ -5,8 +5,8 @@ import numpy as np
 from pathlib import Path
 from easydict import EasyDict as edict
 
-sys.path.append(str(Path(__file__).parent.parent.parent))
-from cvml2 import Annotation, AnnotatedImage, DetectionDataset
+# sys.path.append(str(Path(__file__).parent.parent.parent))
+from cvml2 import Annotation, AnnotatedImage, AnnotatedObject, DetectionDataset
 from cvml2 import paths2image_sources
 
 
@@ -18,8 +18,8 @@ def test_init():
     
     img_srcs = paths2image_sources(['1.png', '2.png', '3.png'])
     categories = ['category']
-    images = edict()
-    annot = Annotation({'categories': categories, 'images': images})
+    images = {}
+    annot = Annotation(categories=categories, images=images)
     d2 = DetectionDataset(img_srcs, annot)
     assert d2.image_sources == img_srcs
     assert d2.annotation == annot
@@ -38,7 +38,7 @@ def test_rename():
     img_paths = paths2image_sources(['1.png', '2.png'])
     categories = ['category']
     images = {'1': AnnotatedImage(), '2': AnnotatedImage()}
-    annot = Annotation({'categories': categories, 'images': images})
+    annot = Annotation(categories=categories, images=images)
     d2 = DetectionDataset(img_paths, annot)
     d2.rename(lambda x: x + '_')
     assert [src.name for src in d2.image_sources] == ['1_', '2_']
@@ -48,9 +48,8 @@ def test_rename():
 def test_resize():
     img_srcs = paths2image_sources(['1.png'])
     categories = ['category']
-    images = edict({'1': AnnotatedImage(width=10, height=10, 
-                                        annotations=[{'bbox': [1, 2, 3, 4]}])})
-    annot = Annotation({'categories': categories, 'images': images})
+    images = {'1': AnnotatedImage(width=10, height=10, annotations=[AnnotatedObject(bbox=[1, 2, 3, 4])])}
+    annot = Annotation(**{'categories': categories, 'images': images})
     d1 = DetectionDataset(img_srcs, annot)
     
     width, height = 20, 30
@@ -61,9 +60,9 @@ def test_resize():
     prep_img = prep_fn(img)
     
     assert prep_img.shape == (height, width)
-    assert d1.annotation.images['1']['width'] == width
-    assert d1.annotation.images['1']['height'] == height
-    assert d1.annotation.images['1']['annotations'][0]['bbox'] == [2, 6, 6, 12]
+    assert d1.annotation.images['1'].width == width
+    assert d1.annotation.images['1'].height == height
+    assert d1.annotation.images['1'].annotations[0].bbox == [2, 6, 6, 12]
     
 
 def test_magic_add():
