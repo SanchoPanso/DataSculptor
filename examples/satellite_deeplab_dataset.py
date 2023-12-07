@@ -2,7 +2,7 @@ import os
 import cv2
 import glob
 import numpy as np
-import cvml2
+import datasculptor as dts
 import json
 import datetime
 import rasterio
@@ -25,19 +25,19 @@ def main():
     datasets_dir = r'D:\datasets\geo_ai\sattelite\prepared'
     dataset_path = get_dataset_path(datasets_dir, 'geoai_satellite_deeplab')
     print(dataset_path)
-    dataset = cvml2.ISDataset()
+    dataset = dts.ISDataset()
 
     for cur_dir in data_dirs:
         src_images_dir = os.path.join(data_path, cur_dir, 'images')
         src_annot_path = os.path.join(data_path, cur_dir, 'annotations', 'instances_default.json')
         
-        annot = cvml2.read_coco(src_annot_path)
+        annot = dts.read_coco(src_annot_path)
         image_paths = glob.glob(os.path.join(src_images_dir, '*'))
-        image_sources = cvml2.paths2image_sources(image_paths)
+        image_sources = dts.paths2image_sources(image_paths)
         
-        cur_dataset = cvml2.ISDataset(image_sources, annot)
+        cur_dataset = dts.ISDataset(image_sources, annot)
         cur_dataset.rename(lambda x: cur_dir + '_' + x)
-        cur_dataset = cvml2.crop_dataset(cur_dataset, (640, 640))
+        cur_dataset = dts.crop_dataset(cur_dataset, (640, 640))
         cur_dataset.annotation = change_annotation(cur_dataset.annotation, categories)
         cur_dataset.remove_empty_images()
 
@@ -60,7 +60,7 @@ def main():
         images_dir = os.path.join(dataset_path, subset, 'images')
         masks_dir = os.path.join(dataset_path, subset, 'masks')
         os.makedirs(masks_dir, exist_ok=True)
-        annot = cvml2.read_coco(annotations_path)
+        annot = dts.read_coco(annotations_path)
         
         for name in annot.images:
             if not os.path.exists(os.path.join(images_dir, name + '.png')):
@@ -101,7 +101,7 @@ def get_dataset_path(datasets_dir: str, base_name: str):
     return os.path.join(datasets_dir, name)
 
 
-def change_annotation(annot: cvml2.Annotation, new_classes: list):
+def change_annotation(annot: dts.Annotation, new_classes: list):
     classes = annot.categories
     
     conformity = {}
@@ -125,7 +125,7 @@ def change_annotation(annot: cvml2.Annotation, new_classes: list):
     return annot
     
 
-def delete_small_bboxes(annot: cvml2.Annotation):
+def delete_small_bboxes(annot: dts.Annotation):
     images = annot.images
     for name in images:
         new_bboxes = []

@@ -5,7 +5,7 @@ from pathlib import Path
 import json
 from easydict import EasyDict
 
-from cvml2 import Annotation, AnnotatedImage, AnnotatedObject, read_coco, write_coco
+from datasculptor import Annotation, AnnotatedImage, AnnotatedObject, read_coco, write_coco
 
 def test_init():
     annot = Annotation()

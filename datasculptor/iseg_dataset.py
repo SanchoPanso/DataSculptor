@@ -9,9 +9,9 @@ from abc import ABC
 from typing import List, Set, Dict, Callable
 from enum import Enum
 
-from cvml2.annotation import write_yolo_iseg, write_coco
-from cvml2.det_dataset import DetectionDataset
-from cvml2.image_source import ImageSource
+from datasculptor.annotation import write_yolo_iseg, write_coco
+from datasculptor.det_dataset import DetectionDataset
+from datasculptor.image_source import ImageSource
 
 
 # def convert_mask_to_coco_rle(color_mask: np.ndarray, bbox: BoundingBox) -> dict:

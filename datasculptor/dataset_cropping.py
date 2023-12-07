@@ -1,8 +1,8 @@
 import cv2
 import os
 import numpy as np
-from cvml2 import DetectionDataset, Annotation, AnnotatedImage, AnnotatedObject
-from cvml2 import ImageSource, CropImageSource
+from datasculptor import DetectionDataset, Annotation, AnnotatedImage, AnnotatedObject
+from datasculptor import ImageSource, CropImageSource
 
 
 def crop_dataset(dataset: DetectionDataset, size: tuple) -> DetectionDataset:

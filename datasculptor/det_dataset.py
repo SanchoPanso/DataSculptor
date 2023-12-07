@@ -11,8 +11,8 @@ from enum import Enum
 import logging
 import time
 
-from cvml2 import Annotation, write_yolo_det
-from cvml2 import ImageSource, paths2image_sources
+from datasculptor import Annotation, write_yolo_det
+from datasculptor import ImageSource, paths2image_sources
 
 
 class DetectionDataset:

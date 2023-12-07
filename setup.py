@@ -31,10 +31,10 @@ def read_requirements(path):
 
 
 setup(
-    name="cvml2",
+    name="datasculptor",
     version='0.1.0',
-    description="Computer Vision's Machine Learning",
-    url="https://github.com/SanchoPanso/DataScienceTools",
+    description="DataSculptor",
+    url="https://github.com/SanchoPanso/DataSculptor",
     long_description=read("README.md"),
     long_description_content_type="text/markdown",
     author="SanchoPanso",

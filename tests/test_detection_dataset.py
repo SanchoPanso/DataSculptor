@@ -6,8 +6,8 @@ from pathlib import Path
 from easydict import EasyDict as edict
 
 # sys.path.append(str(Path(__file__).parent.parent.parent))
-from cvml2 import Annotation, AnnotatedImage, AnnotatedObject, DetectionDataset
-from cvml2 import paths2image_sources
+from datasculptor import Annotation, AnnotatedImage, AnnotatedObject, DetectionDataset
+from datasculptor import paths2image_sources
 
 
 def test_init():
