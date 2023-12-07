@@ -1,9 +1,9 @@
-# CVML2
+# DataSculptor
 ## Setup
 
 ```
-git clone https://github.com/SanchoPanso/cvml2.git
-cd cvml2
+git clone https://github.com/SanchoPanso/DataSculptor.git
+cd DataSculptor
 python -m venv venv
 source venv/bin/activate
 pip install -e .
