@@ -184,4 +184,6 @@ class ISDataset(DetectionDataset):
             self._write_description(os.path.join(dataset_path, 'data.yaml'), dataset_name)
             self.logger.info(f"Description is done")
 
+        self._clear_cache(dataset_path)
+
 
