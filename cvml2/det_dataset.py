@@ -275,7 +275,7 @@ class DetectionDataset:
     
     
     def _get_sample_annotation(self, sample_name: str) -> dict:
-        sample_classes = self.annotation['categories']
+        sample_classes = self.annotation.categories
         sample_images = {}
         
         for i in self.subsets[sample_name]:
@@ -290,8 +290,8 @@ class DetectionDataset:
     def _write_description(self, path: str, dataset_name: str):
         text = f"train: {dataset_name}/train/images\n" \
                f"val: {dataset_name}/valid/images\n\n" \
-               f"nc: {len(self.annotation['categories'])}\n" \
-               f"names: {self.annotation['categories']}"
+               f"nc: {len(self.annotation.categories)}\n" \
+               f"names: {self.annotation.categories}"
         with open(path, 'w') as f:
             f.write(text)
         
