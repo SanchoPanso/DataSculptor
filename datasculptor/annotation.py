@@ -366,13 +366,13 @@ def write_yolo_iseg(annotation: dict, path: str):
     os.makedirs(path, exist_ok=True)
     
     for image_name in annotation['images']:
-        bboxes = annotation['images'][image_name]['annotations']
-        height = annotation['images'][image_name]['height']
-        width = annotation['images'][image_name]['width']
+        bboxes = annotation['images'][image_name].annotations
+        height = annotation['images'][image_name].height
+        width = annotation['images'][image_name].width
         labels = []
         
         for bbox in bboxes:
-            segmentation = bbox['segmentation']
+            segmentation = bbox.segmentation
             relative_segmentation = []
             
             if type(segmentation) != list or len(segmentation) == 0 or len(segmentation[0]) <= 4:
@@ -387,7 +387,7 @@ def write_yolo_iseg(annotation: dict, path: str):
                     y = max_seg_contour[i] / height
                     relative_segmentation.append(y)
             
-            label = [bbox['category_id']] + relative_segmentation
+            label = [bbox.category_id] + relative_segmentation
             labels.append(label)
 
         with open(os.path.join(path, image_name + '.txt'), 'w') as f:
