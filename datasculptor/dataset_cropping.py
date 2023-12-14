@@ -1,7 +1,7 @@
 import cv2
 import os
 import numpy as np
-from datasculptor import DetectionDataset, Annotation, AnnotatedImage, AnnotatedObject
+from datasculptor import DetectionDataset, ISDataset, Annotation, AnnotatedImage, AnnotatedObject
 from datasculptor import ImageSource, CropImageSource
 
 
@@ -24,7 +24,10 @@ def crop_dataset(dataset: DetectionDataset, size: tuple) -> DetectionDataset:
         new_image_sources += cur_new_img_srcs
         new_annotation.images.update(cur_new_lbl_images)
     
-    new_dataset = DetectionDataset(new_image_sources, new_annotation)
+    if type(dataset) == ISDataset:
+        new_dataset = ISDataset(new_image_sources, new_annotation)    
+    else:
+        new_dataset = DetectionDataset(new_image_sources, new_annotation)
     return new_dataset
     
     
@@ -72,8 +75,9 @@ def crop_dataset_image(image_source: ImageSource, labeled_image: AnnotatedImage,
                 new_w = new_x2 - new_x
                 new_h = new_y2 - new_y
                 
-                if new_h + new_w < 10:
-                    continue
+                # TODO: in another place 
+                # if new_h + new_w < 10:
+                #     continue
                 
                 segmentation = bbox.segmentation
                 if len(segmentation) != 0:

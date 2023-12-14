@@ -101,6 +101,8 @@ class CropImageSource(ImageSource):
                 cv2.imwrite(os.path.join(cache_dir, '_'.join(self.name.split('_')[:-1]) + '_' + str(i) + image_ext), crop)
         else:
             pass
+        if os.path.exists(os.path.join(save_dir, self.name + image_ext)):
+            os.remove(os.path.join(save_dir, self.name + image_ext))
         os.rename(cached_file, os.path.join(save_dir, self.name + image_ext))
         
 

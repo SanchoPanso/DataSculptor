@@ -2,7 +2,7 @@ import sys
 import logging
 
 from datasculptor.annotation import Annotation, AnnotatedImage, AnnotatedObject
-from datasculptor.annotation import read_coco, write_coco, write_yolo_det, write_yolo_iseg
+from datasculptor.annotation import read_coco, write_coco, write_yolo_det, write_yolo_iseg, read_yolo
 
 from datasculptor.image_source import ImageSource, CropImageSource, paths2image_sources
 from datasculptor.det_dataset import DetectionDataset
