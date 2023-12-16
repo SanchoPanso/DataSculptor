@@ -361,14 +361,14 @@ def write_yolo_det(annotation: dict, path: str):
                 f.write(line)
 
 
-def write_yolo_iseg(annotation: dict, path: str):
+def write_yolo_iseg(annotation: Annotation, path: str):
     
     os.makedirs(path, exist_ok=True)
     
-    for image_name in annotation['images']:
-        bboxes = annotation['images'][image_name].annotations
-        height = annotation['images'][image_name].height
-        width = annotation['images'][image_name].width
+    for image_name in annotation.images:
+        bboxes = annotation.images[image_name].annotations
+        height = annotation.images[image_name].height
+        width = annotation.images[image_name].width
         labels = []
         
         for bbox in bboxes:

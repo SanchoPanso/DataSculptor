@@ -1,11 +1,13 @@
 import cv2
 import os
+import sys
+import copy
 import numpy as np
-from datasculptor import DetectionDataset, ISDataset, Annotation, AnnotatedImage, AnnotatedObject
-from datasculptor import ImageSource, CropImageSource
+from datasculptor import Dataset, ISDataset, Annotation, AnnotatedImage, AnnotatedObject
+from datasculptor import ImageSource, Cropper
 
 
-def crop_dataset(dataset: DetectionDataset, size: tuple) -> DetectionDataset:
+def crop_dataset(dataset: Dataset, size: tuple) -> Dataset:
     image_sources = dataset.image_sources
     annotation = dataset.annotation
     categories = annotation.categories
@@ -14,7 +16,7 @@ def crop_dataset(dataset: DetectionDataset, size: tuple) -> DetectionDataset:
     new_annotation = Annotation(categories=categories, images={})
     
     for img_src in image_sources:
-        name = img_src.name
+        name = img_src.get_final_name()
         if name not in annotation.images:
             continue
         
@@ -24,10 +26,7 @@ def crop_dataset(dataset: DetectionDataset, size: tuple) -> DetectionDataset:
         new_image_sources += cur_new_img_srcs
         new_annotation.images.update(cur_new_lbl_images)
     
-    if type(dataset) == ISDataset:
-        new_dataset = ISDataset(new_image_sources, new_annotation)    
-    else:
-        new_dataset = DetectionDataset(new_image_sources, new_annotation)
+    new_dataset = Dataset(new_image_sources, new_annotation)
     return new_dataset
     
     
@@ -42,6 +41,8 @@ def crop_dataset_image(image_source: ImageSource, labeled_image: AnnotatedImage,
     num_cols = -(-width // crop_w)
     cnt = 0
     
+    name = image_source.get_final_name()
+    
     for row in range(num_rows):
         for col in range(num_cols):
             x2 = min(width, crop_w * (col + 1))
@@ -52,12 +53,20 @@ def crop_dataset_image(image_source: ImageSource, labeled_image: AnnotatedImage,
 
             w, h = x2 - x1, y2 - y1
             
-            new_img_src = CropImageSource(
-                image_source,
-                cnt,
-                lambda x: crop_image(x, crop_size), 
-                f"{image_source.name}_{cnt}",
-            )
+            new_img_src = ImageSource(
+                image_source.path, 
+                name,
+                image_source.editors)
+            
+            cropper = Cropper(crop_size, cnt)
+            new_img_src.editors.append(cropper)
+            
+            # new_img_src = CropImageSource(
+            #     image_source,
+            #     cnt,
+            #     lambda x: crop_image(x, crop_size), 
+            #     f"{image_source.name}_{cnt}",
+            # )
             new_img_srcs.append(new_img_src)
             
             new_bboxes = []
@@ -95,35 +104,10 @@ def crop_dataset_image(image_source: ImageSource, labeled_image: AnnotatedImage,
                 new_bboxes.append(new_bbox)
             
             new_lbl_image = AnnotatedImage(width=w, height=h, annotations=new_bboxes)
-            new_lbl_images[new_img_src.name] = new_lbl_image
+            new_lbl_images[new_img_src.get_final_name()] = new_lbl_image
             
             cnt += 1
     return new_img_srcs, new_lbl_images
-
-
-def crop_image(img: np.ndarray, size: tuple):        
-    width, height = img.shape[1], img.shape[0]
-    
-    crop_w, crop_h = size
-    
-    num_rows = -(-height // crop_h)
-    num_cols = -(-width // crop_w)
-    cnt = 0
-
-    crops = []    
-    for row in range(num_rows):
-        for col in range(num_cols):
-            
-            x2 = min(width, crop_w * (col + 1))
-            y2 = min(height, crop_h * (row + 1))
-
-            x1 = x2 - crop_w
-            y1 = y2 - crop_h
-
-            crop = img[y1:y2, x1:x2]
-            crops.append(crop)
-    
-    return crops
 
 
 def crop_segmentation(segmentation, xyxy):

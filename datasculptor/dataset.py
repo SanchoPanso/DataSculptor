@@ -12,15 +12,11 @@ import logging
 import time
 import shutil
 
-from datasculptor import Annotation, write_yolo_det
-from datasculptor import ImageSource, Resizer, Renamer, paths2image_sources
+from datasculptor.annotation import Annotation, write_yolo_det, write_yolo_iseg, write_coco
+from datasculptor.image_source import ImageSource, Resizer, Renamer, paths2image_sources
 
 
-class DetectionDataset:
-    """
-    Class of dataset, representing sets of labeled images with bounding boxes, 
-    which are used in detection tasks.
-    """
+class Dataset:
 
     image_sources: List[ImageSource]
     annotation: Annotation
@@ -41,8 +37,6 @@ class DetectionDataset:
         self.annotation = annotation or Annotation()
         self.subsets = subsets or {}
 
-        self.resizer = None
-
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
 
@@ -53,7 +47,7 @@ class DetectionDataset:
     def __getitem__(self, item):
         return self.image_sources[item]
 
-    def __add__(self, other: DetectionDataset):
+    def __add__(self, other: Dataset):
 
         # Addition of image sources
         sum_image_sources = self.image_sources + other.image_sources
@@ -80,7 +74,7 @@ class DetectionDataset:
             if name in other_sample_names:
                 sum_samples[name] += list(map(lambda x: x + len(self), other.subsets[name]))
 
-        return DetectionDataset(sum_image_sources, sum_annotation, sum_samples)
+        return Dataset(sum_image_sources, sum_annotation, sum_samples)
 
     def resize(self, size: tuple):
         assert len(size) == 2
@@ -111,6 +105,13 @@ class DetectionDataset:
                 h *= new_height / old_height
 
                 bbox.bbox = [x, y, w, h]
+                
+                segmentation = bbox.segmentation
+                for segment in segmentation:
+                    segment = np.array(segment).astype('float64').reshape(-1, 1, 2)
+                    segment[..., 0] *= new_width / old_width
+                    segment[..., 1] *= new_height / old_height
+                    segment = segment.reshape(-1).astype('int32').tolist()
 
 
     def rename(self, rename_callback: Callable):
@@ -224,6 +225,15 @@ class DetectionDataset:
             bboxes = self.annotation.images[name].annotations
             if len(bboxes) == 0:
                 continue
+            
+            # TODO: CHECK
+            bboxes_is_empty = True
+            for bbox in bboxes:
+                if len(bbox.segmentation) != 0:
+                    bboxes_is_empty = False
+                    break
+            if bboxes_is_empty:
+                continue
 
             new_img_srcs.append(img_src)
         self.image_sources = new_img_srcs
@@ -233,54 +243,70 @@ class DetectionDataset:
                 dataset_name: str = 'dataset',
                 image_ext: str = '.jpg',
                 install_images: bool = True,
-                install_labels: bool = True,
-                # install_annotations: bool = True, 
+                install_yolo_det_labels: bool = False,
+                install_yolo_seg_labels: bool = False,
+                install_coco_annotations: bool = True, 
                 install_description: bool = True):
 
+        assert (install_yolo_det_labels and install_yolo_seg_labels) == False
+        
         for subset_name in self.subsets.keys():
-            subset_ids = self.subsets[subset_name]
-
             if install_images:
-                images_dir = os.path.join(dataset_path, subset_name, 'images')
-                os.makedirs(images_dir, exist_ok=True)
+                self._install_images(dataset_path, subset_name, image_ext)
 
-                for i, split_idx in enumerate(subset_ids):
-                    # image_source = self.image_sources[split_idx] 
-                    # img = cv2.imread(image_source)
+            if install_yolo_det_labels:
+                self._install_yolo_det_labels(dataset_path, subset_name)
 
-                    if self.resizer is not None:
-                        img = self.resizer(img)
-
-                    image_source = self.image_sources[split_idx]
-                    # save_img_path = os.path.join(images_dir, image_source.name + image_ext)
-                    image_source.save(images_dir, image_ext, cache_dir=os.path.join(dataset_path, '.cvml2_cache'))
-
-                    self.logger.info(f"[{i + 1}/{len(subset_ids)}] " +
-                                     f"{subset_name}:{self.image_sources[split_idx].get_final_name()}{image_ext} is done")
-                self.logger.info(f"{subset_name} is done")
-
-            if install_labels:
-                labels_dir = os.path.join(dataset_path, subset_name, 'labels')
-                os.makedirs(labels_dir, exist_ok=True)
-                sample_annotation = self._get_sample_annotation(subset_name)
-                write_yolo_det(sample_annotation, labels_dir)
-                self.logger.info(f"{subset_name}:yolo_labels is done")
-
-            # if install_annotations:
-            #     annotation_dir = os.path.join(dataset_path, split_name, 'annotations')
-            #     os.makedirs(annotation_dir, exist_ok=True)
-            #     coco_path = os.path.join(annotation_dir, 'data.json')
-            #     sample_annotation = self._get_sample_annotation(split_name)
-            #     write_coco(sample_annotation, coco_path)
-            #     self.logger.info(f"{split_name}:coco_annotation is done")
+            if install_yolo_seg_labels:
+                self._install_yolo_seg_labels(dataset_path, subset_name)
+            
+            if install_coco_annotations:
+                self._install_coco_annotations(dataset_path, subset_name, image_ext)
 
         if install_description:
             self._write_description(os.path.join(dataset_path, 'data.yaml'), dataset_name)
-            self.logger.info(f"Description is done")
 
         self._clear_cache(dataset_path)
+    
+    def _install_images(self, dataset_path, subset_name, image_ext):
+        subset_ids = self.subsets[subset_name]
+        images_dir = os.path.join(dataset_path, subset_name, 'images')
+        os.makedirs(images_dir, exist_ok=True)
 
+        for i, split_idx in enumerate(subset_ids):
+            image_source = self.image_sources[split_idx]
+            # save_img_path = os.path.join(images_dir, image_source.name + image_ext)
+            image_source.save(images_dir, image_ext, cache_dir=os.path.join(dataset_path, '.cvml2_cache'))
 
+            self.logger.info(f"[{i + 1}/{len(subset_ids)}] " +
+                                f"{subset_name}:{self.image_sources[split_idx].get_final_name()}{image_ext} is done")
+        self.logger.info(f"{subset_name} is done")
+
+    def _install_yolo_det_labels(self, dataset_path: str, subset_name: str):
+        labels_dir = os.path.join(dataset_path, subset_name, 'labels')
+        os.makedirs(labels_dir, exist_ok=True)
+        sample_annotation = self._get_sample_annotation(subset_name)
+        write_yolo_det(sample_annotation, labels_dir)
+        self.logger.info(f"{subset_name}:yolo_labels is done")
+    
+    def _install_yolo_seg_labels(self, dataset_path: str, subset_name: str):
+        labels_dir = os.path.join(dataset_path, subset_name, 'labels')
+        os.makedirs(labels_dir, exist_ok=True)
+        sample_annotation = self._get_sample_annotation(subset_name)
+        write_yolo_iseg(sample_annotation, labels_dir)
+        self.logger.info(f"{subset_name}:yolo_labels is done")
+    
+    def _install_coco_annotations(self, dataset_path: str, subset_name: str, image_ext: str):
+        annotation_dir = os.path.join(dataset_path, subset_name, 'annotations')
+        os.makedirs(annotation_dir, exist_ok=True)
+        coco_path = os.path.join(annotation_dir, 'data.json')
+        sample_annotation = self._get_sample_annotation(subset_name)
+        write_coco(sample_annotation, coco_path, image_ext)
+        self.logger.info(f"{subset_name}:coco_annotation is done")
+    
+    def _install_masks(self,):
+        pass
+        
     def _get_sample_annotation(self, sample_name: str) -> dict:
         sample_classes = self.annotation.categories
         sample_images = {}
@@ -291,7 +317,7 @@ class DetectionDataset:
                 continue
             sample_images[name] = self.annotation.images[name]
 
-        sample_annotation = {'categories': sample_classes, 'images': sample_images}
+        sample_annotation = Annotation(categories=sample_classes, images=sample_images)
         return sample_annotation
 
     def _write_description(self, path: str, dataset_name: str):
@@ -301,13 +327,10 @@ class DetectionDataset:
                f"names: {self.annotation.categories}"
         with open(path, 'w') as f:
             f.write(text)
+        self.logger.info(f"Description is done")
 
     def _clear_cache(self, dataset_path):
         shutil.rmtree(os.path.join(dataset_path, '.cvml2_cache'))
-
-
-
-
 
 
 

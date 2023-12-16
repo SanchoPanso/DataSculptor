@@ -32,6 +32,8 @@ import rasterio
 import zipfile
 from pathlib import Path
 from filesplit.split import Split
+from memory_profiler import memory_usage
+memory_usage()
 
 
 def main():
@@ -43,9 +45,10 @@ def main():
     datasets_dir = r'D:\datasets\geo_ai\aerial\prepared'
     dataset_path = get_dataset_path(datasets_dir, 'geoai_aerial')
     print(dataset_path)
-    dataset = dts.ISDataset()
+    print(memory_usage())
+    dataset = dts.Dataset()
 
-    for cur_dir in data_dirs:
+    for cur_dir in data_dirs[:2]:
         src_images_dir = os.path.join(data_path, cur_dir, 'images')
         src_annot_path = os.path.join(data_path, cur_dir, 'annotations', 'instances_default.json')
         
@@ -53,21 +56,25 @@ def main():
         image_paths = glob.glob(os.path.join(src_images_dir, '*'))
         image_sources = dts.paths2image_sources(image_paths)
         
-        cur_dataset = dts.ISDataset(image_sources, annot)
+        cur_dataset = dts.Dataset(image_sources, annot)
         cur_dataset.rename(lambda x: cur_dir + '_' + x)
         cur_dataset = dts.crop_dataset(cur_dataset, (1024, 1024))
         cur_dataset.annotation = change_annotation(cur_dataset.annotation, categories)
         cur_dataset.remove_empty_images()
 
-        cur_dataset.split_by_proportions({'all': 1.0}) #({'valid': 0.2, 'train': 0.8})
+        cur_dataset.split_by_proportions({'valid': 0.2, 'train': 0.8})
         
         dataset += cur_dataset
+        print(memory_usage())
+
+    exit()
     
     dataset.install(
         dataset_path=dataset_path,
         dataset_name=os.path.basename(dataset_path),
         install_images=True,
-        install_labels=True,
+        install_yolo_seg_labels=True,
+        install_coco_annotations=True,
         install_description=True,
         image_ext='.png',
     )

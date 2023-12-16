@@ -8,7 +8,7 @@ from pathlib import Path
 from easydict import EasyDict as edict
 
 from datasculptor import Annotation, AnnotatedImage, AnnotatedObject
-from datasculptor import DetectionDataset, ISDataset
+from datasculptor import Dataset
 from datasculptor import read_yolo
 from datasculptor import crop_dataset
 from datasculptor import paths2image_sources
@@ -49,7 +49,7 @@ def test_crop_2x2_default():
     img_path = os.path.join(os.path.dirname(__file__), 'test_files', 'img.png')
     cv2.imwrite(img_path, img)
     img_sources = paths2image_sources([img_path])
-    dataset = ISDataset(img_sources, annot)
+    dataset = Dataset(img_sources, annot)
     
     cropped_dataset = crop_dataset(dataset, (3, 3))
     cropped_dataset.split_by_proportions({'all': 1.0})
@@ -58,7 +58,9 @@ def test_crop_2x2_default():
         dataset_path,
         image_ext='.png',
         install_images=True,
-        install_labels=True,
+        install_yolo_det_labels = False,
+        install_yolo_seg_labels = True,
+      
     )
     
     # Check common properties

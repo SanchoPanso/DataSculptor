@@ -11,7 +11,7 @@ from enum import Enum
 
 from datasculptor.annotation import write_yolo_iseg, write_coco
 from datasculptor.det_dataset import DetectionDataset
-from datasculptor.image_source import ImageSource
+from datasculptor.image_source import ImageSource, Resizer
 
 
 # def convert_mask_to_coco_rle(color_mask: np.ndarray, bbox: BoundingBox) -> dict:
@@ -80,7 +80,7 @@ class ISDataset(DetectionDataset):
         
         # Add resize fn to image sources
         for img_src in self.image_sources:
-            img_src.preprocessing_fns.append(lambda x: cv2.resize(x, size))
+            img_src.editors.append(Resizer(size))
         
         # Go through annotation and correct coordinates
         new_width, new_height = size
@@ -116,11 +116,11 @@ class ISDataset(DetectionDataset):
     def remove_empty_images(self):
         new_img_srcs = []
         for img_src in self.image_sources:
-            name = img_src.name
+            name = img_src.get_final_name()
             if name not in self.annotation.images:
                 continue
             
-            bboxes = self.annotation.images[name]['annotations']
+            bboxes = self.annotation.images[name].annotations
             bboxes_is_empty = False
             for bbox in bboxes:
                 if len(bbox.segmentation) == 0:
@@ -162,7 +162,7 @@ class ISDataset(DetectionDataset):
                     image_source.save(images_dir, image_ext, cache_dir=os.path.join(dataset_path, '.cvml2_cache'))                
                     
                     self.logger.info(f"[{i + 1}/{len(subset_ids)}] " + 
-                                     f"{subset_name}:{self.image_sources[split_idx].name}{image_ext} is done")
+                                     f"{subset_name}:{self.image_sources[split_idx].get_final_name()}{image_ext} is done")
                 self.logger.info(f"{subset_name} is done")
 
             if install_labels:
