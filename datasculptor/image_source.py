@@ -46,28 +46,6 @@ class Renamer(ImageEditor):
         return self.rename_callback(name)
 
 
-class Cropper(ImageEditor):
-    def __init__(self, size: Tuple[int, int], idx: int) -> None:
-        super().__init__()
-        self.size = size
-        self.idx = idx
-    
-    def edit_name(self, name: str) -> str:
-        return self._edit_name_by_index(name, self.idx)
-    
-    def edit_image(self, img: np.ndarray, name: str) -> Tuple[np.ndarray, dict or None]:        
-        crops = crop_image(img, self.size)
-
-        cache = {}
-        for i, crop in enumerate(crops):
-            cache[self._edit_name_by_index(name, i)] = crop
-        
-        return crops[self.idx], cache
-        
-    def _edit_name_by_index(self, name: str, idx: int):
-        return name + '_' + str(idx)
-
-
 class ImageSource:
     name: str
     editors: List[ImageEditor]
@@ -162,29 +140,30 @@ class ImageSource:
         im_buf_arr.tofile(path)
 
 
-def crop_image(img: np.ndarray, size: tuple):        
-    width, height = img.shape[1], img.shape[0]
+# def crop_image(img: np.ndarray, size: tuple):        
+#     width, height = img.shape[1], img.shape[0]
     
-    crop_w, crop_h = size
+#     crop_w, crop_h = size
     
-    num_rows = -(-height // crop_h)
-    num_cols = -(-width // crop_w)
-    cnt = 0
+#     num_rows = -(-height // crop_h)
+#     num_cols = -(-width // crop_w)
+#     cnt = 0
 
-    crops = []    
-    for row in range(num_rows):
-        for col in range(num_cols):
+#     crops = []    
+#     for row in range(num_rows):
+#         for col in range(num_cols):
             
-            x2 = min(width, crop_w * (col + 1))
-            y2 = min(height, crop_h * (row + 1))
+#             x2 = min(width, crop_w * (col + 1))
+#             y2 = min(height, crop_h * (row + 1))
 
-            x1 = x2 - crop_w
-            y1 = y2 - crop_h
+#             x1 = x2 - crop_w
+#             y1 = y2 - crop_h
 
-            crop = img[y1:y2, x1:x2]
-            crops.append(crop)
+#             crop = img[y1:y2, x1:x2]
+#             crops.append(crop)
     
-    return crops
+#     return crops
+
 
 def paths2image_sources(paths: List[str]) -> List[ImageSource]:
     

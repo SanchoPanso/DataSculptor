@@ -2,6 +2,7 @@ from __future__ import annotations
 import os
 import sys
 import cv2
+import copy
 import random
 import math
 import numpy as np
@@ -246,6 +247,7 @@ class Dataset:
                 install_yolo_det_labels: bool = False,
                 install_yolo_seg_labels: bool = False,
                 install_coco_annotations: bool = True, 
+                install_masks: bool = False,
                 install_description: bool = True):
 
         assert (install_yolo_det_labels and install_yolo_seg_labels) == False
@@ -254,14 +256,18 @@ class Dataset:
             if install_images:
                 self._install_images(dataset_path, subset_name, image_ext)
 
+            subset_annotation = self._get_subset_annotation(subset_name)
             if install_yolo_det_labels:
-                self._install_yolo_det_labels(dataset_path, subset_name)
+                self._install_yolo_det_labels(subset_annotation, dataset_path, subset_name)
 
             if install_yolo_seg_labels:
-                self._install_yolo_seg_labels(dataset_path, subset_name)
+                self._install_yolo_seg_labels(subset_annotation, dataset_path, subset_name)
             
             if install_coco_annotations:
-                self._install_coco_annotations(dataset_path, subset_name, image_ext)
+                self._install_coco_annotations(subset_annotation, dataset_path, subset_name, image_ext)
+            
+            if install_masks:
+                self._install_masks(subset_annotation, dataset_path, subset_name)
 
         if install_description:
             self._write_description(os.path.join(dataset_path, 'data.yaml'), dataset_name)
@@ -282,32 +288,83 @@ class Dataset:
                                 f"{subset_name}:{self.image_sources[split_idx].get_final_name()}{image_ext} is done")
         self.logger.info(f"{subset_name} is done")
 
-    def _install_yolo_det_labels(self, dataset_path: str, subset_name: str):
+    def _install_yolo_det_labels(
+        self, 
+        subset_annotation: Annotation, 
+        dataset_path: str, 
+        subset_name: str):
+        
         labels_dir = os.path.join(dataset_path, subset_name, 'labels')
         os.makedirs(labels_dir, exist_ok=True)
-        sample_annotation = self._get_sample_annotation(subset_name)
-        write_yolo_det(sample_annotation, labels_dir)
+        write_yolo_det(subset_annotation, labels_dir)
         self.logger.info(f"{subset_name}:yolo_labels is done")
     
-    def _install_yolo_seg_labels(self, dataset_path: str, subset_name: str):
+    def _install_yolo_seg_labels(
+        self, 
+        subset_annotation: Annotation,
+        dataset_path: str, 
+        subset_name: str):
+        
         labels_dir = os.path.join(dataset_path, subset_name, 'labels')
         os.makedirs(labels_dir, exist_ok=True)
-        sample_annotation = self._get_sample_annotation(subset_name)
-        write_yolo_iseg(sample_annotation, labels_dir)
+        write_yolo_iseg(subset_annotation, labels_dir)
         self.logger.info(f"{subset_name}:yolo_labels is done")
     
-    def _install_coco_annotations(self, dataset_path: str, subset_name: str, image_ext: str):
+    def _install_coco_annotations(
+        self, 
+        subset_annotation: Annotation, 
+        dataset_path: str, 
+        subset_name: str, 
+        image_ext: str):
+        
         annotation_dir = os.path.join(dataset_path, subset_name, 'annotations')
         os.makedirs(annotation_dir, exist_ok=True)
         coco_path = os.path.join(annotation_dir, 'data.json')
-        sample_annotation = self._get_sample_annotation(subset_name)
-        write_coco(sample_annotation, coco_path, image_ext)
+        write_coco(subset_annotation, coco_path, image_ext)
         self.logger.info(f"{subset_name}:coco_annotation is done")
     
-    def _install_masks(self,):
-        pass
+    def _install_masks(
+        self, 
+        subset_annotation: Annotation,
+        dataset_path: str, 
+        subset_name: str):
         
-    def _get_sample_annotation(self, sample_name: str) -> dict:
+        masks_dir = os.path.join(dataset_path, subset_name, 'masks')
+        os.makedirs(masks_dir, exist_ok=True)    
+        colors = self._get_segment_colors(subset_annotation.categories)
+        
+        for name, annot_image in subset_annotation.images.items():
+            width = annot_image.width
+            height = annot_image.height
+            mask = np.zeros((height, width), dtype='uint8')
+            
+            for bbox in annot_image.annotations:
+                cat_id = bbox.category_id
+                segmentation = bbox.segmentation
+                
+                for segment in segmentation:
+                    segment = np.array(segment)
+                    segment = segment.reshape((-1, 1, 2))
+                    segment = segment.astype('int32')
+                    
+                    color = colors[cat_id]
+                    cv2.fillPoly(mask, [segment], color)
+
+            mask_path = os.path.join(masks_dir, name + '.png')
+            cv2.imwrite(mask_path, mask)            
+            
+    
+    # TODO: number of colors is limited
+    def _get_segment_colors(self, class_names: list):
+        colors = []
+        max_color = 255
+        for i, class_name in enumerate(class_names):
+            color = (max_color * (i + 1)) // len(class_names)
+            colors.append(color)
+        
+        return colors
+      
+    def _get_subset_annotation(self, sample_name: str) -> Annotation:
         sample_classes = self.annotation.categories
         sample_images = {}
 
@@ -330,7 +387,8 @@ class Dataset:
         self.logger.info(f"Description is done")
 
     def _clear_cache(self, dataset_path):
-        shutil.rmtree(os.path.join(dataset_path, '.cvml2_cache'))
+        if os.path.exists(os.path.join(dataset_path, '.cvml2_cache')):
+            shutil.rmtree(os.path.join(dataset_path, '.cvml2_cache'))
 
 
 

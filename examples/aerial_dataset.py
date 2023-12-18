@@ -33,7 +33,6 @@ import zipfile
 from pathlib import Path
 from filesplit.split import Split
 from memory_profiler import memory_usage
-memory_usage()
 
 
 def main():
@@ -48,17 +47,21 @@ def main():
     print(memory_usage())
     dataset = dts.Dataset()
 
-    for cur_dir in data_dirs[:2]:
+    # data_dirs = ['3764-3766', '3767']
+    # renamers = [lambda x: d + '_' + x for d in data_dirs]
+    for i, cur_dir in enumerate(data_dirs[:2]):
         src_images_dir = os.path.join(data_path, cur_dir, 'images')
-        src_annot_path = os.path.join(data_path, cur_dir, 'annotations', 'instances_default.json')
+        src_annot_path = os.path.join(data_path, cur_dir, 'annotations', 'checked.json')
         
         annot = dts.read_coco(src_annot_path)
         image_paths = glob.glob(os.path.join(src_images_dir, '*'))
         image_sources = dts.paths2image_sources(image_paths)
         
         cur_dataset = dts.Dataset(image_sources, annot)
-        cur_dataset.rename(lambda x: cur_dir + '_' + x)
-        cur_dataset = dts.crop_dataset(cur_dataset, (1024, 1024))
+        # prefix = cur_dir[:]
+        # rename_callback = lambda x: prefixes[i] + '_' + x
+        # cur_dataset.rename(renamers[i])
+        cur_dataset = dts.crop_dataset(cur_dataset, (1024, 1024), 256)
         cur_dataset.annotation = change_annotation(cur_dataset.annotation, categories)
         cur_dataset.remove_empty_images()
 
@@ -67,16 +70,17 @@ def main():
         dataset += cur_dataset
         print(memory_usage())
 
-    exit()
+    #exit()
     
     dataset.install(
         dataset_path=dataset_path,
         dataset_name=os.path.basename(dataset_path),
         install_images=True,
         install_yolo_seg_labels=True,
-        install_coco_annotations=True,
+        install_coco_annotations=False,
         install_description=True,
-        image_ext='.png',
+        install_masks = True,
+        image_ext='.jpg',
     )
     
     # Split the dataset into 999 MB blocks

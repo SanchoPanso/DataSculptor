@@ -3,11 +3,97 @@ import os
 import sys
 import copy
 import numpy as np
+from typing import Tuple
+import albumentations as A
 from datasculptor import Dataset, ISDataset, Annotation, AnnotatedImage, AnnotatedObject
-from datasculptor import ImageSource, Cropper
+from datasculptor.image_source import ImageSource, ImageEditor
+from shapely import Polygon, MultiPolygon, intersection, union_all
 
 
-def crop_dataset(dataset: Dataset, size: tuple) -> Dataset:
+class Cropper(ImageEditor):
+    def __init__(self, size: Tuple[int, int], idx: int, overlap: int = 0) -> None:
+        super().__init__()
+        self.size = size
+        self.idx = idx
+        self.overlap = overlap
+    
+    def edit_name(self, name: str) -> str:
+        return self._edit_name_by_index(name, self.idx)
+    
+    def edit_image(self, img: np.ndarray, name: str) -> Tuple[np.ndarray, dict or None]:        
+        crops = split_image(img, self.size, self.overlap)
+
+        cache = {}
+        for i, crop in enumerate(crops):
+            cache[self._edit_name_by_index(name, i)] = crop
+        
+        return crops[self.idx], cache
+        
+    def _edit_name_by_index(self, name: str, idx: int):
+        return name + '_' + str(idx)
+
+
+def split_image(img: np.ndarray, size: tuple, overlap: int = 0) -> list:
+    """
+    Split image into tiles with overlap.
+    :param image: image to split
+    :param tile_size: size of tile
+    :param overlap: overlap between tiles
+    :return: list of tiles
+    """
+    height, width = img.shape[:2]
+    h, w = size[:2]
+    
+    num_rows, num_cols = get_num_rows_cols(width, height, w, h, overlap)
+
+    padded_height = num_rows * (h - overlap) + overlap
+    padded_width = num_cols * (w - overlap) + overlap
+    img_pad = add_padding(img, (padded_height, padded_width))
+
+    tiles = []
+    for row in range(num_rows):
+        for col in range(num_cols):
+            
+            x1 = col * (w - overlap)
+            y1 = row * (h - overlap)
+            x2 = x1 + w
+            y2 = y1 + h
+            
+            tile = img_pad[y1:y2, x1:x2]
+            tiles.append(tile)
+            
+    return tiles
+
+
+def get_num_rows_cols(img_width, img_height, crop_w, crop_h, overlap):
+    num_rows = img_height // (crop_h - overlap)
+    num_cols = img_width // (crop_w - overlap)
+
+    if num_rows * (crop_h - overlap) + overlap < img_height:
+        num_rows += 1
+
+    if num_cols * (crop_w - overlap) + overlap < img_width:
+        num_cols += 1
+        
+    return num_rows, num_cols
+
+
+def add_padding(image: np.ndarray, size: (int, int)) -> np.ndarray:
+    """
+    Add padding to image
+    :param image:
+    :param size:
+    :return: image with padding
+    """
+    transform = A.Compose([
+        A.PadIfNeeded(min_height=size[0], min_width=size[1], border_mode=cv2.BORDER_CONSTANT, value=0)
+    ])
+    image = transform(image=image)['image']
+
+    return image
+
+
+def crop_dataset(dataset: Dataset, size: tuple, overlap = 0) -> Dataset:
     image_sources = dataset.image_sources
     annotation = dataset.annotation
     categories = annotation.categories
@@ -21,7 +107,7 @@ def crop_dataset(dataset: Dataset, size: tuple) -> Dataset:
             continue
         
         lbl_image = annotation.images[name]
-        cur_new_img_srcs, cur_new_lbl_images = crop_dataset_image(img_src, lbl_image, size)
+        cur_new_img_srcs, cur_new_lbl_images = crop_dataset_image(img_src, lbl_image, size, overlap)
         
         new_image_sources += cur_new_img_srcs
         new_annotation.images.update(cur_new_lbl_images)
@@ -31,42 +117,39 @@ def crop_dataset(dataset: Dataset, size: tuple) -> Dataset:
     
     
 # TODO: subsets
-def crop_dataset_image(image_source: ImageSource, labeled_image: AnnotatedImage, crop_size: tuple):
+def crop_dataset_image(image_source: ImageSource, labeled_image: AnnotatedImage, crop_size: tuple, overlap: int):
     new_img_srcs, new_lbl_images = [], {}
     width, height = labeled_image.width, labeled_image.height
     
     crop_w, crop_h = crop_size
     
-    num_rows = -(-height // crop_h)
-    num_cols = -(-width // crop_w)
+    num_rows, num_cols = get_num_rows_cols(width, height, crop_w, crop_h, overlap)
     cnt = 0
     
     name = image_source.get_final_name()
     
+    padded_height = num_rows * (crop_h - overlap) + overlap
+    padded_width = num_cols * (crop_w - overlap) + overlap
+    
+    left_pad = (padded_width - width) // 2
+    upper_pad = (padded_height - height) // 2
+    
     for row in range(num_rows):
         for col in range(num_cols):
-            x2 = min(width, crop_w * (col + 1))
-            y2 = min(height, crop_h * (row + 1))
-
-            x1 = x2 - crop_w
-            y1 = y2 - crop_h
-
-            w, h = x2 - x1, y2 - y1
+            
+            x1 = col * (crop_w - overlap) - left_pad
+            y1 = row * (crop_h - overlap) - upper_pad
+            x2 = x1 + crop_w
+            y2 = y1 + crop_h
             
             new_img_src = ImageSource(
                 image_source.path, 
-                name,
-                image_source.editors)
+                image_source.name,
+                image_source.editors[:]
+            )
             
-            cropper = Cropper(crop_size, cnt)
+            cropper = Cropper(crop_size, cnt, overlap)
             new_img_src.editors.append(cropper)
-            
-            # new_img_src = CropImageSource(
-            #     image_source,
-            #     cnt,
-            #     lambda x: crop_image(x, crop_size), 
-            #     f"{image_source.name}_{cnt}",
-            # )
             new_img_srcs.append(new_img_src)
             
             new_bboxes = []
@@ -79,36 +162,91 @@ def crop_dataset_image(image_source: ImageSource, labeled_image: AnnotatedImage,
                 
                 new_x = max(0, old_x - x1)
                 new_y = max(0, old_y - y1)
-                new_x2 = min(w, new_x + old_w)
-                new_y2 = min(h, new_y + old_h)
+                new_x2 = min(crop_w, new_x + old_w)
+                new_y2 = min(crop_h, new_y + old_h)
                 new_w = new_x2 - new_x
                 new_h = new_y2 - new_y
                 
-                # TODO: in another place 
-                # if new_h + new_w < 10:
-                #     continue
-                
                 segmentation = bbox.segmentation
                 if len(segmentation) != 0:
-                    new_segmentation = crop_segmentation(segmentation, (x1, y1, x2, y2))
+                    new_segmentation = crop_segmentation(
+                        segmentation, 
+                        (x1, y1, x2, y2))
                 else:
                     new_segmentation = segmentation
-                    
+                
+                #TODO: check if segmentation is empty (we need to exlude bbox)
                 new_bbox = {
                     'category_id': bbox.category_id,
                     'bbox': [new_x, new_y, new_w, new_h],
-                    'bbox_mode': 'xywh',
                     'segmentation': new_segmentation,
                 }
                 new_bbox = AnnotatedObject(**new_bbox)
                 new_bboxes.append(new_bbox)
             
-            new_lbl_image = AnnotatedImage(width=w, height=h, annotations=new_bboxes)
+            new_lbl_image = AnnotatedImage(width=crop_w, height=crop_h, annotations=new_bboxes)
             new_lbl_images[new_img_src.get_final_name()] = new_lbl_image
             
             cnt += 1
     return new_img_srcs, new_lbl_images
 
+
+# def crop_segmentation(segmentation, xyxy):
+#     x1, y1, x2, y2 = xyxy
+#     img_rect = Polygon(((0, 0), (0, y2 - y1 - 1), 
+#                         (x2 - x1 - 1, y2 - y1 - 1), (x2 - x1 - 1, 0)))
+    
+#     obj_polys = []
+#     for segment in segmentation:
+#         segment = np.array(segment)
+        
+#         segment = segment.reshape(-1, 2)
+        
+#         segment[..., 0] -= x1
+#         segment[..., 1] -= y1
+        
+#         obj_poly = Polygon(segment)
+#         obj_polys.append(obj_poly)
+    
+#     union_poly = union_all(obj_polys)
+#     exterior_idx = -1
+#     for i, obj_poly in enumerate(obj_polys):
+#         if obj_poly.equals(union_poly):
+#             exterior_idx = i
+#             break
+    
+#     if exterior_idx == -1:
+#         return []
+    
+#     exterior_poly = obj_polys[exterior_idx]
+#     interior_poly = obj_polys
+#     interior_poly.pop(exterior_idx)
+        
+#     if not exterior_poly.intersects(img_rect):
+#         return []
+#     if not exterior_poly.is_valid:
+#         return []
+    
+#     common_poly = Polygon(exterior_poly, interior_poly)
+#     new_obj_poly = intersection(common_poly, img_rect)
+    
+#     if type(new_obj_poly) == Polygon:
+#         new_obj_poly = MultiPolygon([new_obj_poly])
+#     elif type(new_obj_poly) == MultiPolygon:
+#         pass
+#     else:
+#         return []
+    
+#     new_segmentation = []
+#     for poly in new_obj_poly.geoms:
+#         xs, ys = poly.exterior.coords.xy
+#         xs, ys = xs.tolist(), ys.tolist()
+        
+#         new_segment = np.array([xs, ys]).T.reshape(-1).tolist()[:-2]
+#         new_segmentation.append(new_segment)
+    
+#     return new_segmentation
+        
 
 def crop_segmentation(segmentation, xyxy):
     x1, y1, x2, y2 = xyxy

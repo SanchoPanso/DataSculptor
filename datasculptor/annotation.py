@@ -399,7 +399,7 @@ def find_max_seg_contour(segmentation: list) -> list:
     max_idx = 0
     max_square = -1 
     for i, contour in enumerate(segmentation):        
-        square = cv2.contourArea(np.array(contour).reshape((-1, 1, 2)))
+        square = cv2.contourArea(np.array(contour).reshape((-1, 1, 2)).astype('int32'))
         if square > max_square:
             max_square = square
             max_idx = i

@@ -4,7 +4,7 @@ import logging
 from datasculptor.annotation import Annotation, AnnotatedImage, AnnotatedObject
 from datasculptor.annotation import read_coco, write_coco, write_yolo_det, write_yolo_iseg, read_yolo
 
-from datasculptor.image_source import ImageSource, paths2image_sources, Cropper, Resizer, Renamer
+from datasculptor.image_source import ImageSource, paths2image_sources, Resizer, Renamer
 from datasculptor.det_dataset import DetectionDataset
 from datasculptor.iseg_dataset import ISDataset
 from datasculptor.dataset import Dataset
