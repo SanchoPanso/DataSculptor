@@ -2,11 +2,7 @@
 ## Setup
 
 ```
-git clone https://github.com/SanchoPanso/DataSculptor.git
-cd DataSculptor
-python -m venv venv
-source venv/bin/activate
-pip install -e .
+pip install git+https://github.com/SanchoPanso/DataSculptor.git
 ```
 
 ## GetStarted

@@ -1,9 +1,0 @@
-easydict==1.10
-opencv-python==4.8.0.76
-pandas==1.5.2
-Pillow==9.3.0
-pytest==7.4.0
-PyYAML==6.0
-tqdm==4.64.1
-filesplit
-rasterio
