@@ -17,6 +17,10 @@ from datasculptor.annotation import Annotation, write_yolo_det, write_yolo_iseg,
 from datasculptor.image_source import ImageSource, Resizer, Renamer, paths2image_sources
 
 
+LOGGER = logging.getLogger(__name__)
+LOGGER.setLevel(logging.INFO)
+
+
 class Dataset:
 
     image_sources: List[ImageSource]
@@ -37,10 +41,6 @@ class Dataset:
         self.image_sources = image_sources or []
         self.annotation = annotation or Annotation()
         self.subsets = subsets or {}
-
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
-
 
     def __len__(self):
         return len(self.image_sources)
@@ -162,7 +162,7 @@ class Dataset:
             message += f"{split_name}({len(self.subsets[split_name])})"
             if i != len(self.subsets.keys()) - 1:
                 message += ", "
-        self.logger.info(message)
+        LOGGER.info(message)
 
     def split_by_dataset(self, yolo_dataset_path: str):
 
@@ -213,12 +213,12 @@ class Dataset:
             message += f"{split_name}({len(self.subsets[split_name])})"
             if i != len(self.subsets.keys()) - 1:
                 message += ", "
-        self.logger.info(message)
+        LOGGER.info(message)
 
         return new_dataset
 
     def remove_empty_images(self, residual_empty_percentage: float = 0):
-        assert 0 <= residual_empty_percentage <= 1
+        assert 0 <= residual_empty_percentage < 1
 
         empty_img_srcs = []
         filled_img_srcs = []
@@ -246,7 +246,7 @@ class Dataset:
             filled_img_srcs.append(img_src)
         
         random.shuffle(empty_img_srcs)
-        residual_empty_img_srcs = empty_img_srcs[0: int(residual_empty_percentage * len(filled_img_srcs))]
+        residual_empty_img_srcs = empty_img_srcs[0: int(len(filled_img_srcs) * residual_empty_percentage / (1 - residual_empty_percentage))]
         self.image_sources = filled_img_srcs + residual_empty_img_srcs
 
     def install(self,
@@ -294,9 +294,9 @@ class Dataset:
             # save_img_path = os.path.join(images_dir, image_source.name + image_ext)
             image_source.save(images_dir, image_ext, cache_dir=os.path.join(dataset_path, '.cvml2_cache'))
 
-            self.logger.info(f"[{i + 1}/{len(subset_ids)}] " +
+            LOGGER.info(f"[{i + 1}/{len(subset_ids)}] " +
                                 f"{subset_name}:{self.image_sources[split_idx].get_final_name()}{image_ext} is done")
-        self.logger.info(f"{subset_name} is done")
+        LOGGER.info(f"{subset_name} is done")
 
     def _install_yolo_det_labels(
         self, 
@@ -307,7 +307,7 @@ class Dataset:
         labels_dir = os.path.join(dataset_path, subset_name, 'labels')
         os.makedirs(labels_dir, exist_ok=True)
         write_yolo_det(subset_annotation, labels_dir)
-        self.logger.info(f"{subset_name}:yolo_labels is done")
+        LOGGER.info(f"{subset_name}:yolo_labels is done")
     
     def _install_yolo_seg_labels(
         self, 
@@ -318,7 +318,7 @@ class Dataset:
         labels_dir = os.path.join(dataset_path, subset_name, 'labels')
         os.makedirs(labels_dir, exist_ok=True)
         write_yolo_iseg(subset_annotation, labels_dir)
-        self.logger.info(f"{subset_name}:yolo_labels is done")
+        LOGGER.info(f"{subset_name}:yolo_labels is done")
     
     def _install_coco_annotations(
         self, 
@@ -331,7 +331,7 @@ class Dataset:
         os.makedirs(annotation_dir, exist_ok=True)
         coco_path = os.path.join(annotation_dir, 'data.json')
         write_coco(subset_annotation, coco_path, image_ext)
-        self.logger.info(f"{subset_name}:coco_annotation is done")
+        LOGGER.info(f"{subset_name}:coco_annotation is done")
     
     def _install_masks(
         self, 
@@ -394,7 +394,7 @@ class Dataset:
                f"names: {self.annotation.categories}"
         with open(path, 'w') as f:
             f.write(text)
-        self.logger.info(f"Description is done")
+        LOGGER.info(f"Description is done")
 
     def _clear_cache(self, dataset_path):
         if os.path.exists(os.path.join(dataset_path, '.cvml2_cache')):
