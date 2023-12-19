@@ -67,6 +67,9 @@ class ImageSource:
         if ret is True:
             return
         
+        if cache_dir is not None:
+            os.makedirs(cache_dir, exist_ok=True)
+
         img = self.get_final_img(cache_dir, image_ext)
         self._write(save_path, img)
 
@@ -77,7 +80,7 @@ class ImageSource:
         return name
     
     def get_final_img(self, cache_dir: str = None, image_ext='.jpg'):
-        edit_idx, name, img = self._check_cache_or_read(cache_dir, image_ext)    
+        edit_idx, name, img = self._check_cache_or_read(cache_dir)    
         
         for i, editor in enumerate(self.editors[edit_idx + 1:]):
             img, img_cache = editor.edit_image(img, name)
@@ -94,7 +97,7 @@ class ImageSource:
                 return True
         return False
     
-    def _check_cache_or_read(self, cache_dir, image_ext):
+    def _check_cache_or_read(self, cache_dir):
         if cache_dir is None:
             return -1, self.name, self._read(self.path)
         
@@ -111,7 +114,7 @@ class ImageSource:
             cached_path = os.path.join(cache_dir, n + '.npy')
             if os.path.exists(cached_path):
                 img = np.load(cached_path)
-                return i, n, img
+                return len(names) - 1 - i, n, img
         
         return -1, self.name, self._read(self.path)
     

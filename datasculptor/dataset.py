@@ -108,11 +108,12 @@ class Dataset:
                 bbox.bbox = [x, y, w, h]
                 
                 segmentation = bbox.segmentation
-                for segment in segmentation:
+                for i, segment in enumerate(segmentation):
                     segment = np.array(segment).astype('float64').reshape(-1, 1, 2)
                     segment[..., 0] *= new_width / old_width
                     segment[..., 1] *= new_height / old_height
-                    segment = segment.reshape(-1).astype('int32').tolist()
+                    segmentation[i] = segment.reshape(-1).astype('int32').tolist()
+                    pass
 
 
     def rename(self, rename_callback: Callable):
