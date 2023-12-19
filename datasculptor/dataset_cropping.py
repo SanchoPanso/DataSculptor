@@ -169,13 +169,18 @@ def crop_dataset_image(image_source: ImageSource, labeled_image: AnnotatedImage,
                 
                 segmentation = bbox.segmentation
                 if len(segmentation) != 0:
+                    bbox_is_with_segmentation = True
                     new_segmentation = crop_segmentation(
                         segmentation, 
                         (x1, y1, x2, y2))
                 else:
+                    bbox_is_with_segmentation = False
                     new_segmentation = segmentation
                 
                 #TODO: check if segmentation is empty (we need to exlude bbox)
+                if bbox_is_with_segmentation and len(new_segmentation) == 0:
+                    continue
+
                 new_bbox = {
                     'category_id': bbox.category_id,
                     'bbox': [new_x, new_y, new_w, new_h],

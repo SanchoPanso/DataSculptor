@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 from pathlib import Path
 
-from datasculptor import Annotation, AnnotatedImage, AnnotatedObject, Dataset
+from datasculptor import Annotation, AnnotatedImage, AnnotatedObject, Dataset, ImageSource
 from datasculptor import paths2image_sources
 
 
@@ -76,6 +76,33 @@ def test_magic_add():
     assert d3.subsets['test'] == []
 
 
+def test_remove_empty_images():
+    
+    img_sources = [ImageSource('1.png'), ImageSource('2.png')]
+    annot = Annotation(['0'],{'1': AnnotatedImage(10, 10, [AnnotatedObject([0, 0, 2, 2])]), 
+                              '2': AnnotatedImage(10, 10, [])})
+
+    dataset = Dataset(img_sources, annot)
+    dataset.remove_empty_images()
+
+    assert len(dataset.image_sources) == 1
+    assert dataset.image_sources[0].name == '1'
+
+
+def test_remove_empty_images2():
+    
+    img_sources = [ImageSource('1.png'), ImageSource('2.png'), ImageSource('3.png')]
+    annot = Annotation(['0'],{'1': AnnotatedImage(10, 10, [AnnotatedObject([0, 0, 2, 2])]), 
+                              '2': AnnotatedImage(10, 10, [])})
+
+    dataset = Dataset(img_sources, annot)
+    dataset.remove_empty_images(residual_empty_percentage=0.5)
+
+    assert len(dataset.image_sources) == 2
+    assert dataset.image_sources[0].name == '1'
+    assert dataset.image_sources[1].name in ['2', '3']
+
+    
 # def test_add_with_proportions():
 #     imsrc = ''
 

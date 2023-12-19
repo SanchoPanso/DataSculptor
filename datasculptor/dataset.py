@@ -217,28 +217,37 @@ class Dataset:
 
         return new_dataset
 
-    def remove_empty_images(self):
-        new_img_srcs = []
+    def remove_empty_images(self, residual_empty_percentage: float = 0):
+        assert 0 <= residual_empty_percentage <= 1
+
+        empty_img_srcs = []
+        filled_img_srcs = []
+
         for img_src in self.image_sources:
             name = img_src.get_final_name()
             if name not in self.annotation.images:
+                empty_img_srcs.append(img_src)
                 continue
 
             bboxes = self.annotation.images[name].annotations
             if len(bboxes) == 0:
+                empty_img_srcs.append(img_src)
                 continue
             
-            # TODO: CHECK
-            bboxes_is_empty = True
-            for bbox in bboxes:
-                if len(bbox.segmentation) != 0:
-                    bboxes_is_empty = False
-                    break
-            if bboxes_is_empty:
-                continue
+            # # TODO: CHECK
+            # bboxes_is_empty = True
+            # for bbox in bboxes:
+            #     if len(bbox.segmentation) != 0:
+            #         bboxes_is_empty = False
+            #         break
+            # if bboxes_is_empty:
+            #     continue
 
-            new_img_srcs.append(img_src)
-        self.image_sources = new_img_srcs
+            filled_img_srcs.append(img_src)
+        
+        random.shuffle(empty_img_srcs)
+        residual_empty_img_srcs = empty_img_srcs[0: int(residual_empty_percentage * len(filled_img_srcs))]
+        self.image_sources = filled_img_srcs + residual_empty_img_srcs
 
     def install(self,
                 dataset_path: str,
