@@ -3,7 +3,6 @@ import cv2
 import numpy as np
 import json
 from typing import Any, List, Dict, Union
-from easydict import EasyDict
 from types import SimpleNamespace
 import copy
 

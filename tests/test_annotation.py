@@ -3,7 +3,6 @@ import os
 import sys
 from pathlib import Path
 import json
-from easydict import EasyDict
 
 from datasculptor import Annotation, AnnotatedImage, AnnotatedObject, read_coco, write_coco
 

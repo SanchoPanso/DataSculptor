@@ -5,7 +5,7 @@ import copy
 import numpy as np
 from typing import Tuple
 import albumentations as A
-from datasculptor import Dataset, ISDataset, Annotation, AnnotatedImage, AnnotatedObject
+from datasculptor import Dataset, Annotation, AnnotatedImage, AnnotatedObject
 from datasculptor.image_source import ImageSource, ImageEditor
 from shapely import Polygon, MultiPolygon, intersection, union_all
 

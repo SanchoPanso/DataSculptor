@@ -5,7 +5,6 @@ import pytest
 import shutil
 import numpy as np
 from pathlib import Path
-from easydict import EasyDict as edict
 
 from datasculptor import Annotation, AnnotatedImage, AnnotatedObject
 from datasculptor import Dataset

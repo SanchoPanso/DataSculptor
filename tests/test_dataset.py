@@ -3,15 +3,13 @@ import sys
 import pytest
 import numpy as np
 from pathlib import Path
-from easydict import EasyDict as edict
 
-# sys.path.append(str(Path(__file__).parent.parent.parent))
-from datasculptor import Annotation, AnnotatedImage, AnnotatedObject, DetectionDataset
+from datasculptor import Annotation, AnnotatedImage, AnnotatedObject, Dataset
 from datasculptor import paths2image_sources
 
 
 def test_init():
-    d1 = DetectionDataset()
+    d1 = Dataset()
     assert d1.image_sources == []
     assert d1.annotation == Annotation()
     assert d1.subsets == {}
@@ -20,7 +18,7 @@ def test_init():
     categories = ['category']
     images = {}
     annot = Annotation(categories=categories, images=images)
-    d2 = DetectionDataset(img_srcs, annot)
+    d2 = Dataset(img_srcs, annot)
     assert d2.image_sources == img_srcs
     assert d2.annotation == annot
     assert d2.subsets == {}
@@ -29,7 +27,7 @@ def test_init():
 def test_rename():
     
     # Check empty dataset renaming
-    d1 = DetectionDataset()
+    d1 = Dataset()
     d1.rename(lambda x: x + '_')
     assert d1.image_sources == []
     assert d1.annotation == Annotation()
@@ -39,9 +37,9 @@ def test_rename():
     categories = ['category']
     images = {'1': AnnotatedImage(), '2': AnnotatedImage()}
     annot = Annotation(categories=categories, images=images)
-    d2 = DetectionDataset(img_paths, annot)
+    d2 = Dataset(img_paths, annot)
     d2.rename(lambda x: x + '_')
-    assert [src.name for src in d2.image_sources] == ['1_', '2_']
+    assert [src.get_final_name() for src in d2.image_sources] == ['1_', '2_']
     assert set(d2.annotation.images.keys()) == set(['1_', '2_'])
 
 
@@ -50,14 +48,14 @@ def test_resize():
     categories = ['category']
     images = {'1': AnnotatedImage(width=10, height=10, annotations=[AnnotatedObject(bbox=[1, 2, 3, 4])])}
     annot = Annotation(**{'categories': categories, 'images': images})
-    d1 = DetectionDataset(img_srcs, annot)
+    d1 = Dataset(img_srcs, annot)
     
     width, height = 20, 30
     d1.resize((width, height))
     
     img = np.zeros((1, 1), dtype='uint8')
-    prep_fn = d1.image_sources[0].preprocessing_fns[0]
-    prep_img = prep_fn(img)
+    prep_fn = d1.image_sources[0].editors[0].edit_image
+    prep_img, _ = prep_fn(img, d1.image_sources[0].name)
     
     assert prep_img.shape == (height, width)
     assert d1.annotation.images['1'].width == width
@@ -67,8 +65,8 @@ def test_resize():
 
 def test_magic_add():
     imsrc = ''
-    d1 = DetectionDataset([imsrc, imsrc, imsrc], None, {'train': [0, 1], 'valid': [2], 'test': []})
-    d2 = DetectionDataset([imsrc, imsrc, imsrc], None, {'train': [0], 'valid': [1, 2]})
+    d1 = Dataset([imsrc, imsrc, imsrc], None, {'train': [0, 1], 'valid': [2], 'test': []})
+    d2 = Dataset([imsrc, imsrc, imsrc], None, {'train': [0], 'valid': [1, 2]})
 
     d3 = d1 + d2
 

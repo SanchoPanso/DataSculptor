@@ -128,16 +128,6 @@ files = [
 ]
 
 [[package]]
-name = "easydict"
-version = "1.11"
-description = "Access dict values as attributes (works recursively)."
-optional = false
-python-versions = "*"
-files = [
-    {file = "easydict-1.11.tar.gz", hash = "sha256:dcb1d2ed28eb300c8e46cd371340373abc62f7c14d6dea74fdfc6f1069061c78"},
-]
-
-[[package]]
 name = "filesplit"
 version = "4.0.1"
 description = "Python module that is capable of splitting files and merging it back."
@@ -974,4 +964,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "5349e4bd3072b80648c26edd4ec05f70c06a7f19e604056cf1e42283c285ab3e"
+content-hash = "d8a1593423d435d81f0e744dde917a8eed811084dd33705aca8c16e7c5c3595d"
