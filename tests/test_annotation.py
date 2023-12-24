@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 import json
 
-from datasculptor import Annotation, AnnotatedImage, AnnotatedObject, read_coco, write_coco
+from datasculptor import Annotation, AnnotatedImage, AnnotatedObject, read_coco, write_coco, read_yolo, write_yolo_det
 
 def test_init():
     annot = Annotation()
@@ -102,70 +102,46 @@ def test_write_coco():
     assert got_dict['annotations'] == expected_dict['annotations']
 
 
-# def test_read_yolo():
-#     yolo_path = os.path.join(os.path.dirname(__file__), 'test_files', 'test_yolo')
-#     img_size = (2448, 2048)
-#     classes = ['comet', 'other']
-#     annot = read_yolo(yolo_path, img_size, classes)
-#     bbox_map = annot.bbox_map
-#     images = list(bbox_map.keys())
+def test_read_yolo():
+    yolo_path = os.path.join(os.path.dirname(__file__), 'test_files', 'test_yolo')
+    img_size = (2448, 2048)
+    classes = ['comet', 'other']
+    annot = read_yolo(yolo_path, img_size, classes)
+    images = annot.images
 
-#     assert annot.classes == classes
-#     assert images == ['1', '10']
+    assert annot.categories == classes
+    assert set(images.keys()) == set(('1', '10'))
 
-#     assert len(bbox_map['1']) == 1
-#     assert len(bbox_map['10']) == 1
+    assert len(images['1'].annotations) == 1
+    assert len(images['10'].annotations) == 1
     
-#     assert bbox_map['1'][0].get_class_id() == 0
-#     # assert bbox_map['1'][0].get_segmentation() == [[1200, 500, 1260, 500, 1200, 1050]]
-#     assert bbox_map['1'][0].get_absolute_bounding_box() == (1200, 500, 60, 550)
-#     assert bbox_map['1'][0].get_image_size() == (2448, 2048)
-#     assert bbox_map['1'][0].get_confidence() == 1.0
-#     assert bbox_map['1'][0].get_bb_type() == BBType.GroundTruth
-
-#     assert bbox_map['10'][0].get_class_id() == 1
-#     # assert bbox_map['10'][0].get_segmentation() == {"size": [2448, 2048], "counts": [0, 1]}
-#     assert bbox_map['10'][0].get_absolute_bounding_box() == (560, 820, 60, 130)
-#     assert bbox_map['10'][0].get_image_size() == (2448, 2048)
-#     assert bbox_map['10'][0].get_confidence() == 1.0
-#     assert bbox_map['10'][0].get_bb_type() == BBType.GroundTruth
-
-
-# def test_write_yolo():
-
-#     bbox_1 = BoundingBox(0, 1200, 500, 60, 550,
-#                          class_confidence=1.0,
-#                          image_name='1',
-#                          type_coordinates=CoordinatesType.Absolute,
-#                          img_size=(2448, 2048),
-#                          bb_type=BBType.GroundTruth,
-#                          format=BBFormat.XYWH,
-#                          segmentation=[[1200, 500, 1260, 500, 1200, 1050]])
-#     bbox_2 = BoundingBox(1, 560, 820, 60, 130,
-#                          class_confidence=1.0,
-#                          image_name='10',
-#                          type_coordinates=CoordinatesType.Absolute,
-#                          img_size=(2448, 2048),
-#                          bb_type=BBType.GroundTruth,
-#                          format=BBFormat.XYWH,
-#                          segmentation={"size": [2448, 2048], "counts": [0, 1]})
+    assert images['1'].annotations[0].category_id == 0
+    assert list(map(int, images['1'].annotations[0].bbox)) == [1200, 500, 60, 550]
     
-#     classes = ['comet', 'other']
-#     bbox_map = {'1': [bbox_1], '10': [bbox_2]}
-#     annot = Annotation(classes, bbox_map)
     
-#     result_path = os.path.join(os.path.dirname(__file__), 'test_files', 'test_yolo_2')
-#     os.makedirs(result_path, exist_ok=True)
-#     write_yolo(annot, result_path)
+    assert images['10'].annotations[0].category_id == 1
+    assert list(map(int, images['10'].annotations[0].bbox)) == [560, 820, 60, 130]
+    
 
-#     gt_path = os.path.join(os.path.dirname(__file__), 'test_files', 'test_yolo')
+def test_write_yolo_det():
+
+    classes = ['comet', 'other']
+    images = {'1':  AnnotatedImage(2448, 2048, [AnnotatedObject([1200, 500, 60, 550], 0)]), 
+              '10': AnnotatedImage(2448, 2048, [AnnotatedObject([560, 820, 60, 130],  1)])}
+    annot = Annotation(classes, images)
     
-#     for file in os.listdir(result_path):
-#         with open(os.path.join(result_path, file)) as f:
-#             got_str = f.read().strip()
-#         with open(os.path.join(gt_path, file)) as f:
-#             expected_str = f.read().strip()
-#         assert got_str == expected_str
+    result_path = os.path.join(os.path.dirname(__file__), 'test_files', 'test_yolo_2')
+    os.makedirs(result_path, exist_ok=True)
+    write_yolo_det(annot, result_path)
+
+    gt_path = os.path.join(os.path.dirname(__file__), 'test_files', 'test_yolo')
+    
+    for file in os.listdir(result_path):
+        with open(os.path.join(result_path, file)) as f:
+            got_str = f.read().strip()
+        with open(os.path.join(gt_path, file)) as f:
+            expected_str = f.read().strip()
+        assert got_str == expected_str
 
 
 def test_annotation_add():
