@@ -333,22 +333,19 @@ def read_yolo(path: str, img_size: tuple = (1, 1), classes: List[str] = None) ->
     annotation = Annotation(categories=classes, images=images_dict)
     return annotation
 
-def write_yolo_det(annotation: dict, path: str):
+def write_yolo_det(annotation: Annotation, path: str):
     
     os.makedirs(path, exist_ok=True)
     
-    for image_name in annotation['images']:
-        bboxes = annotation['images'][image_name]['annotations']
-        height = annotation['images'][image_name]['height']
-        width = annotation['images'][image_name]['width']
+    for image_name in annotation.images:
+        bboxes = annotation.images[image_name].annotations
+        height = annotation.images[image_name].height
+        width = annotation.images[image_name].width
 
         with open(os.path.join(path, image_name + '.txt'), 'w') as f:
             for bbox in bboxes:
-                cls_id = bbox['category_id']
-                if bbox['bbox_mode'] == 'xywhn':
-                    x, y, w, h = bbox['bbox']
-                elif bbox['bbox_mode'] == 'xywh':
-                    x, y, w, h = xywh2xywhn(bbox['bbox'], (width, height))
+                cls_id = bbox.category_id
+                x, y, w, h = xywh2xywhn(bbox.bbox, (width, height))
                     
                 xc = x + w / 2
                 yc = y + h / 2
