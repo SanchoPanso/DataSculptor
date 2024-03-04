@@ -8,8 +8,40 @@ import rasterio
 import zipfile
 from pathlib import Path
 from filesplit.split import Split
+from shapely import Polygon, union_all
 
-from datasculptor.annotation import Annotation
+from datasculptor.annotation import Annotation, AnnotatedObject
+
+
+def merge_and_split(annot: Annotation, category_name: str):
+    category_id = annot.categories.index(category_name)
+
+    for img_name in annot.images:
+        img = annot.images[img_name]
+
+        mask = np.zeros((img.height, img.width), dtype=np.uint8)
+        new_objs = []
+        for obj in img.annotations:
+            if obj.category_id != category_id:
+                new_objs.append(obj)
+                continue
+
+            for segment in obj.segmentation:
+                segment = np.array(segment)
+                segment = segment.astype('int32')
+                segment = segment.reshape(-1, 1, 2)
+                cv2.fillPoly(mask, [segment], 255)
+
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+            segment = cnt.reshape(-1).tolist()
+            obj = AnnotatedObject([x, y, w, h], category_id, [segment])
+            new_objs.append(obj)
+        
+        img.annotations = new_objs
+    return annot
+
 
 
 def get_dataset_path(datasets_dir: str, base_name: str):

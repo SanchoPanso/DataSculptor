@@ -173,7 +173,42 @@ def test_annotation_add():
     assert sum_annot.images['1_3'].annotations[0].category_id == 2
     assert sum_annot.images['1_3'].annotations[1].category_id == 0
     
+
+def test_annotation_add_reverse_order():
+    annot1 = Annotation(categories=['a', 'b', 'c'], 
+                        images={
+                            '1_1': AnnotatedImage(annotations=[AnnotatedObject(category_id=0)]),
+                        })
     
+    
+    annot2 = Annotation(categories=['c', 'b', 'a'], 
+                        images={
+                            '1_1': AnnotatedImage(annotations=[AnnotatedObject(category_id=2)]),
+                        })
+
+    sum_annot = annot1 + annot2
+    assert sum_annot.categories == ['a', 'b', 'c']
+    assert sum_annot.images['1_1'].annotations[0].category_id == 0
+    assert sum_annot.images['1_1'].annotations[1].category_id == 0
+
+
+def test_annotation_add_reverse_order2():
+    annot1 = Annotation(categories=['a', 'b', 'c'], 
+                        images={
+                            '1_1': AnnotatedImage(annotations=[AnnotatedObject(category_id=0)]),
+                        })
+    
+    
+    annot2 = Annotation(categories=['c', 'a', 'b'], 
+                        images={
+                            '1_1': AnnotatedImage(annotations=[AnnotatedObject(category_id=1)]),
+                        })
+
+    sum_annot = annot1 + annot2
+    assert sum_annot.categories == ['a', 'b', 'c']
+    assert sum_annot.images['1_1'].annotations[0].category_id == 0
+    assert sum_annot.images['1_1'].annotations[1].category_id == 0
+
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__]))

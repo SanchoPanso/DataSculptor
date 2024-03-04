@@ -83,8 +83,6 @@ class Annotation(SimpleNamespace):
         
         other_cat_changes = {}
         for i, other_cat in enumerate(other.categories):
-            if other_cat not in additional_cats:
-                continue
             other_cat_changes[i] = sum_cats.index(other_cat)
         
         sum_images = self.images.copy()

@@ -1,3 +1,4 @@
+from datasculptor.tools import merge_and_split
 from datasculptor.annotation import Annotation, AnnotatedImage, AnnotatedObject
 from datasculptor.annotation import read_coco, write_coco
 from datasculptor.annotation import read_yolo, write_yolo_det, write_yolo_iseg
