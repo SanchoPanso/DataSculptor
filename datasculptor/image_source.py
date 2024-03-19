@@ -38,12 +38,13 @@ class Resizer(ImageEditor):
         return img, None
 
 class Renamer(ImageEditor):
-    def __init__(self, rename_callback: Callable) -> None:
+    def __init__(self, renamer_format_string: str) -> None:
         super().__init__()
-        self.rename_callback = rename_callback
+        self.renamer_format_string = renamer_format_string
         
     def edit_name(self, name: str) -> str:
-        return self.rename_callback(name)
+        new_name = self.renamer_format_string.format(name=name)
+        return new_name
 
 
 class ImageSource:

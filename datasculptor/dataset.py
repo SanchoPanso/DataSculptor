@@ -116,7 +116,7 @@ class Dataset:
                     pass
 
 
-    def rename(self, rename_callback: Callable):
+    def rename(self, renamer_format_string: str):
 
         for i in range(len(self.image_sources)):
 
@@ -125,8 +125,8 @@ class Dataset:
             # new_name = rename_callback(old_name)
             # self.image_sources[i].name = new_name
             old_name = self.image_sources[i].get_final_name()
-            new_name = rename_callback(old_name)
-            renamer = Renamer(rename_callback)
+            new_name = renamer_format_string.format(name=old_name)
+            renamer = Renamer(renamer_format_string)
             self.image_sources[i].editors.append(renamer)
 
             # Rename annotations
