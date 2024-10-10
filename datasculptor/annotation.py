@@ -223,6 +223,17 @@ def write_coco(annotation: Annotation, path: Union[str, bytes, os.PathLike], ima
             x, y, w, h = bbox.bbox
             cls_id = bbox.category_id
             segmentation = bbox.segmentation
+
+            if len(segmentation) > 0:
+                new_segmentation = []
+                for segment in segmentation:
+                    if len(segment) < 6:
+                        continue
+                    new_segmentation.append(segment)
+                if len(new_segmentation) == 0:
+                    continue
+                segmentation = new_segmentation
+
             coco_annotation = {
                 "id": bbox_id, 
                 "image_id": img_id, 

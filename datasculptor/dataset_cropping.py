@@ -196,83 +196,118 @@ def crop_dataset_image(image_source: ImageSource, labeled_image: AnnotatedImage,
     return new_img_srcs, new_lbl_images
 
 
+def crop_segmentation(segmentation, xyxy):
+    x1, y1, x2, y2 = xyxy
+    img_rect = Polygon(((0, 0), (0, y2 - y1 - 1), 
+                        (x2 - x1 - 1, y2 - y1 - 1), (x2 - x1 - 1, 0)))
+    
+    obj_polys = []
+    new_segmentation = []
+    for segment in segmentation:
+        segment = np.array(segment)
+        
+        segment = segment.reshape(-1, 2)
+
+        if len(segment) < 3:
+            continue
+        
+        segment[..., 0] -= x1
+        segment[..., 1] -= y1
+
+        segment = segment.tolist()
+        segment.append(segment[0])
+        
+        obj_poly = Polygon(segment)
+        # obj_polys.append(obj_poly)
+
+        if not obj_poly.is_valid:
+            obj_poly = obj_poly.buffer(0)
+
+        new_obj_poly = intersection(obj_poly, img_rect)
+    
+        if type(new_obj_poly) == Polygon:
+            new_obj_poly = MultiPolygon([new_obj_poly])
+        elif type(new_obj_poly) == MultiPolygon:
+            pass
+        else:
+            continue
+        
+        for poly in new_obj_poly.geoms:
+            xs, ys = poly.exterior.coords.xy
+            xs, ys = xs.tolist(), ys.tolist()
+            
+            new_segment = np.array([xs, ys]).T.reshape(-1).tolist()[:-2]
+            new_segmentation.append(new_segment)
+        
+    
+    # union_poly = union_all(obj_polys)
+    # exterior_idx = -1
+    # for i, obj_poly in enumerate(obj_polys):
+    #     if not obj_poly.is_valid or not union_poly.is_valid:
+    #         obj_poly = obj_poly.buffer(0)
+    #         union_poly = union_poly.buffer(0)
+
+    #     if obj_poly.equals(union_poly):
+    #         exterior_idx = i
+    #         break
+    
+    # if exterior_idx == -1:
+    #     return []
+    
+    # exterior_poly = obj_polys[exterior_idx]
+    # interior_poly = obj_polys
+    # interior_poly.pop(exterior_idx)
+        
+    # if not exterior_poly.intersects(img_rect):
+    #     return []
+    # if not exterior_poly.is_valid:
+    #     exterior_poly = exterior_poly.buffer(0)
+    #     #return []
+    
+    # if exterior_poly.geom_type == 'MultiPolygon':
+    #     exterior_poly = exterior_poly.convex_hull
+
+    # common_poly = Polygon(exterior_poly, interior_poly)
+    # new_obj_poly = intersection(common_poly, img_rect)
+    
+    # if type(new_obj_poly) == Polygon:
+    #     new_obj_poly = MultiPolygon([new_obj_poly])
+    # elif type(new_obj_poly) == MultiPolygon:
+    #     pass
+    # else:
+    #     return []
+    
+    # new_segmentation = []
+    # for poly in new_obj_poly.geoms:
+    #     xs, ys = poly.exterior.coords.xy
+    #     xs, ys = xs.tolist(), ys.tolist()
+        
+    #     new_segment = np.array([xs, ys]).T.reshape(-1).tolist()[:-2]
+    #     new_segmentation.append(new_segment)
+    
+    return new_segmentation
+        
+
 # def crop_segmentation(segmentation, xyxy):
 #     x1, y1, x2, y2 = xyxy
-#     img_rect = Polygon(((0, 0), (0, y2 - y1 - 1), 
-#                         (x2 - x1 - 1, y2 - y1 - 1), (x2 - x1 - 1, 0)))
-    
-#     obj_polys = []
+#     mask = np.zeros((y2 - y1, x2 - x1), dtype='uint8')
+        
 #     for segment in segmentation:
 #         segment = np.array(segment)
         
-#         segment = segment.reshape(-1, 2)
+#         segment = segment.astype('int32')
+#         segment = segment.reshape(-1, 1, 2)
         
 #         segment[..., 0] -= x1
 #         segment[..., 1] -= y1
         
-#         obj_poly = Polygon(segment)
-#         obj_polys.append(obj_poly)
+#         cv2.fillPoly(mask, [segment], 255)
     
-#     union_poly = union_all(obj_polys)
-#     exterior_idx = -1
-#     for i, obj_poly in enumerate(obj_polys):
-#         if obj_poly.equals(union_poly):
-#             exterior_idx = i
-#             break
-    
-#     if exterior_idx == -1:
-#         return []
-    
-#     exterior_poly = obj_polys[exterior_idx]
-#     interior_poly = obj_polys
-#     interior_poly.pop(exterior_idx)
-        
-#     if not exterior_poly.intersects(img_rect):
-#         return []
-#     if not exterior_poly.is_valid:
-#         return []
-    
-#     common_poly = Polygon(exterior_poly, interior_poly)
-#     new_obj_poly = intersection(common_poly, img_rect)
-    
-#     if type(new_obj_poly) == Polygon:
-#         new_obj_poly = MultiPolygon([new_obj_poly])
-#     elif type(new_obj_poly) == MultiPolygon:
-#         pass
-#     else:
-#         return []
-    
+#     contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 #     new_segmentation = []
-#     for poly in new_obj_poly.geoms:
-#         xs, ys = poly.exterior.coords.xy
-#         xs, ys = xs.tolist(), ys.tolist()
-        
-#         new_segment = np.array([xs, ys]).T.reshape(-1).tolist()[:-2]
-#         new_segmentation.append(new_segment)
+#     for cnt in contours:
+#         cnt = cnt.reshape(-1)
+#         new_segmentation.append(cnt.tolist())
     
 #     return new_segmentation
-        
-
-def crop_segmentation(segmentation, xyxy):
-    x1, y1, x2, y2 = xyxy
-    mask = np.zeros((y2 - y1, x2 - x1), dtype='uint8')
-        
-    for segment in segmentation:
-        segment = np.array(segment)
-        
-        segment = segment.astype('int32')
-        segment = segment.reshape(-1, 1, 2)
-        
-        segment[..., 0] -= x1
-        segment[..., 1] -= y1
-        
-        cv2.fillPoly(mask, [segment], 255)
-    
-    contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    new_segmentation = []
-    for cnt in contours:
-        cnt = cnt.reshape(-1)
-        new_segmentation.append(cnt.tolist())
-    
-    return new_segmentation
         
