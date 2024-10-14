@@ -2,6 +2,7 @@ import os
 import cv2
 import glob
 import numpy as np
+import tqdm
 import json
 import datetime
 import rasterio
@@ -153,10 +154,17 @@ def join_splitted_annotations(
     common_obj = []
     overlapped_obj_ids = {}
 
+    offset_x, offset_y = 0, 0
+
     for row in range(num_rows):
-        for col in range(num_cols):
+        for col in tqdm.tqdm(range(num_cols)):
             
             x1, y1, x2, y2 = find_coord(row, col, crop_w, crop_h, left_pad, upper_pad, overlap)
+            
+            if row == 0 and col == 0:
+                offset_x = x1
+                offset_y = y1
+
             objs = annotated_images[row][col].annotations
             objs = add_offset_to_objs(objs, x1, y1)
             
@@ -195,8 +203,10 @@ def join_splitted_annotations(
             nonoverlapped_obj = [obj for i, obj in enumerate(annotated_images[row][col].annotations)
                                  if i not in overlapped_obj_ids[f"{row}_{col}"]]
 
+            nonoverlapped_obj = add_offset_to_objs(nonoverlapped_obj, x1, y1)
             common_obj += nonoverlapped_obj
-            
+    
+    # common_obj = add_offset_to_objs(common_obj, -offset_x, -offset_y)
     common_image = AnnotatedImage(width, height, common_obj)
     return common_image
 
@@ -227,9 +237,13 @@ def join_overlapped_obj(objs1: List[AnnotatedObject], objs2: List[AnnotatedObjec
     overlapped_ids_1 = []
     overlapped_ids_2 = []
 
-    for i, obj1 in enumerate(objs1):
+    # for i in tqdm.tqdm(range(len(objs1))):
+    for i in range(len(objs1)):
+        obj1 = objs1[i]
+
         for j, obj2 in enumerate(objs2):
             overlapped_obj = get_obj_union(obj1, obj2)
+            
             if overlapped_obj is None:
                 continue
             
@@ -247,11 +261,17 @@ def get_obj_union(obj1: AnnotatedObject, obj2: AnnotatedObject) -> AnnotatedObje
     if obj1.category_id != obj2.category_id:
         return None
     
-    obj1_polys = [Polygon(np.array(s).reshape(-1, 2)).buffer(0) for s in obj1.segmentation]
-    obj2_polys = [Polygon(np.array(s).reshape(-1, 2)).buffer(0) for s in obj2.segmentation]
+    obj1_polys = [Polygon(np.array(s).reshape(-1, 2)) for s in obj1.segmentation]
+    obj2_polys = [Polygon(np.array(s).reshape(-1, 2)) for s in obj2.segmentation]
 
-    obj1_multipoly = MultiPolygon(obj1_polys)
-    obj2_multipoly = MultiPolygon(obj2_polys)
+    obj1_multipoly = MultiPolygon(obj1_polys).buffer(0)
+    obj2_multipoly = MultiPolygon(obj2_polys).buffer(0)
+
+    if type(obj1_multipoly) == Polygon:
+        obj1_multipoly = MultiPolygon([obj1_multipoly])
+    
+    if type(obj2_multipoly) == Polygon:
+        obj2_multipoly = MultiPolygon([obj2_multipoly])
 
     if not obj1_multipoly.intersects(obj2_multipoly):
         return None
